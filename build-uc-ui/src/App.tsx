@@ -53,7 +53,7 @@ function duration(clip: Clip): number {
 const API = {
   async trending(category: string): Promise<IdeKonten[]> {
     try {
-      const res = await fetch('/api/trending', {
+      const res = await fetch('http://localhost:5000/api/trending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category }),
@@ -326,11 +326,115 @@ const MOCK_CLIPS: Clip[] = [
 ]
 
 function ClipEditor({ addToast }: any) {
-  const [selectedClip, setSelectedClip] = useState<Clip>(MOCK_CLIPS[0])
+  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [selectedClip, setSelectedClip] = useState<Clip | null>(null)
+  const [clips, setClips] = useState<Clip[]>([])
+
+  const handleDownloadVideo = async () => {
+    if (!youtubeUrl.trim()) {
+      addToast('❌ Masukkan URL YouTube terlebih dahulu', 'error')
+      return
+    }
+
+    setLoading(true)
+    addToast('⏳ Mendownload & menganalisis video...', 'info')
+
+    try {
+      const res = await fetch('http://localhost:5000/api/download-audio', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: youtubeUrl }),
+      })
+      
+      if (!res.ok) throw new Error('Download gagal')
+      const data = await res.json()
+
+      // Analyze audio
+      const analyzeRes = await fetch('http://localhost:5000/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: data.filename, vid_id: data.vid_id }),
+      })
+
+      if (!analyzeRes.ok) throw new Error('Analisis gagal')
+      const moments = await analyzeRes.json()
+
+      // Convert to Clip format
+      const newClips = moments.moments?.map((m: any, i: number) => ({
+        id: i,
+        keyword: m.type || 'Moment',
+        badge: m.type === 'kaget' ? '😱 KAGET' : m.type === 'lucu' ? '😂 LUCU' : '🔊 AUDIO',
+        badgeType: m.type || 'audio',
+        start: m.start,
+        end: m.end,
+        intensityScore: m.intensity || 0,
+        kagetScore: m.kaget || 0,
+        lucuScore: m.lucu || 0,
+        label: 'Video',
+        komentar: 'Moment terdeteksi dari analisis audio',
+        transkrip: 'Video telah dianalisis',
+      })) || []
+
+      setClips(newClips)
+      if (newClips.length > 0) {
+        setSelectedClip(newClips[0])
+        addToast(`✅ Ditemukan ${newClips.length} moment!`, 'success')
+      } else {
+        addToast('⚠️ Tidak ada moment terdeteksi', 'info')
+      }
+    } catch (e) {
+      addToast(`❌ Error: ${String(e).slice(0, 50)}`, 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const displayClips = clips.length > 0 ? clips : MOCK_CLIPS
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 20px' }}>
-      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 300px', gap: 16 }}>
+      {/* Input Form */}
+      {!selectedClip && (
+        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 28, marginBottom: 24 }}>
+          <h2 style={{ margin: '0 0 20px', fontSize: 16, fontWeight: 700, color: '#a855f7' }}>🎬 LANGKAH 1 — Masukkan Link YouTube</h2>
+          
+          <div style={{ marginBottom: 18 }}>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              YouTube URL
+            </label>
+            <input
+              type="text"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={youtubeUrl}
+              onChange={e => setYoutubeUrl(e.target.value)}
+              style={{ width: '100%' }}
+            />
+          </div>
+
+          <button
+            className="btn-primary"
+            onClick={handleDownloadVideo}
+            disabled={loading}
+            style={{ width: '100%', padding: '12px', fontSize: 14 }}
+          >
+            {loading ? '⏳ Downloading & Analyzing...' : '⬇ Download & Analisis Video'}
+          </button>
+        </div>
+      )}
+
+      {/* Clip Editor */}
+      {selectedClip && (
+        <>
+          <button
+            className="btn-secondary"
+            onClick={() => setSelectedClip(null)}
+            style={{ marginBottom: 16, padding: '8px 16px', fontSize: 13 }}
+          >
+            ← Kembali Input Link
+          </button>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 300px', gap: 16 }}>
         {/* LEFT */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)' }}>📋 Daftar Clip</h3>
@@ -339,8 +443,8 @@ function ClipEditor({ addToast }: any) {
               key={clip.id}
               onClick={() => setSelectedClip(clip)}
               style={{
-                background: selectedClip.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
-                border: `1px solid ${selectedClip.id === clip.id ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
+                background: selectedClip?.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
+                border: `1px solid ${selectedClip?.id === clip.id ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
                 borderRadius: 10,
                 padding: '10px 12px',
                 cursor: 'pointer',
@@ -360,23 +464,27 @@ function ClipEditor({ addToast }: any) {
           <div style={{ background: '#000', borderRadius: 12, width: '100%', height: '400px', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 16 }}>
             <span style={{ color: '#666' }}>🎥 Video Player</span>
           </div>
-          <TimelineEditor clip={selectedClip} onUpdate={() => {}} />
+          {selectedClip && <TimelineEditor clip={selectedClip} onUpdate={() => {}} />}
         </div>
 
         {/* RIGHT */}
         <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 16 }}>
           <h3 style={{ margin: '0 0 12px', fontSize: 13, fontWeight: 700 }}>📊 Detail</h3>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
-            <div>Start: {formatTime(selectedClip.start)}</div>
-            <div>End: {formatTime(selectedClip.end)}</div>
-            <div>Durasi: {duration(selectedClip)}s</div>
-            <div style={{ marginTop: 8 }}>Keyword: <strong>{selectedClip.keyword}</strong></div>
-          </div>
+          {selectedClip && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8, fontSize: 12 }}>
+              <div>Start: {formatTime(selectedClip.start)}</div>
+              <div>End: {formatTime(selectedClip.end)}</div>
+              <div>Durasi: {duration(selectedClip)}s</div>
+              <div style={{ marginTop: 8 }}>Keyword: <strong>{selectedClip.keyword}</strong></div>
+            </div>
+          )}
           <button className="btn-primary" style={{ width: '100%', marginTop: 16 }} onClick={() => addToast('✅ Downloaded!', 'success')}>
             ⬇ Download Clip
           </button>
         </div>
-      </div>
+        </div>
+        </>
+      )}
     </div>
   )
 }
