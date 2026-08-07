@@ -104,6 +104,8 @@
     function applyFilter(m) {
         if (m === 'comments') filteredClips = clips.slice().sort(function (a, b) { return (b.commentScore || 0) - (a.commentScore || 0); });
         else if (m === 'duration') filteredClips = clips.slice().sort(function (a, b) { return a.duration - b.duration; });
+        else if (m === 'lucu') filteredClips = clips.slice().sort(function (a, b) { return (b.lucu_score || 0) - (a.lucu_score || 0); });
+        else if (m === 'kaget') filteredClips = clips.slice().sort(function (a, b) { return (b.kaget_score || 0) - (a.kaget_score || 0); });
         else filteredClips = clips.slice().sort(function (a, b) { return b.intensity - a.intensity; });
         renderClipList();
     }
@@ -151,6 +153,8 @@
             var tc = c.label === 'Shorts/TikTok' ? 'ts' : c.label === 'Reels' ? 'tr' : 'tv';
             var kw = c.keyword || '';
             var cm = c.commentScore ? ' <span style="color:var(--accent);font-size:10px">💬' + c.commentScore + '</span>' : '';
+                        var kaget = c.tag_kaget ? ' <span style="color:#ef4444;font-size:10px;font-weight:700">😱 KAGET</span>' : '';
+                        var lucuBadge = c.lucu_score > 5 ? ' <span style="color:#22c55e;font-size:10px">😂' + c.lucu_score + '</span>' : '';
             d.innerHTML = '<span class="cn">#' + c.id + '</span><div class="ci"><div class="cn2">' + (kw || 'Momen #' + c.id) + cm + '</div><div class="ct">' + fmt(c.start) + ' → ' + fmt(c.end) + ' (' + c.duration.toFixed(1) + 's)</div></div><span class="tag ' + tc + '">' + c.label + '</span>';
             d.addEventListener('click', function () { selectClip(c); });
             list.appendChild(d);
@@ -222,6 +226,33 @@
         } catch (e) { toast('❌ Error: ' + e.message); }
         finally { btn.textContent = '⬇ Download Clip'; btn.disabled = false; }
     }
+
+    // ===== MANUAL CLIP EDITOR =====
+    document.getElementById('btnManualPreview').addEventListener('click', function () {
+        var s = parseFloat(document.getElementById('manualStart').value);
+        var e = parseFloat(document.getElementById('manualEnd').value);
+        if (isNaN(s) || isNaN(e) || s >= e) { toast('Isi start & end dengan benar!'); return; }
+        if (!ytPlayer) return;
+        ytPlayer.seekTo(s, true); ytPlayer.playVideo();
+        toast('▶ Preview manual: ' + fmt(s) + ' → ' + fmt(e));
+    });
+    document.getElementById('btnManualDl').addEventListener('click', async function () {
+        var s = parseFloat(document.getElementById('manualStart').value);
+        var e = parseFloat(document.getElementById('manualEnd').value);
+        if (isNaN(s) || isNaN(e) || s >= e) { toast('Isi start & end dengan benar!'); return; }
+        if (!vidId) { toast('Analisis video dulu!'); return; }
+        toast('⏳ Download manual clip...');
+        try {
+            var d = await api('/api/download-video-segment', { url: videoUrl, vid_id: vidId, start: s, end: e });
+            if (d.error) throw new Error(d.error);
+            var iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.src = d.download_url;
+            document.body.appendChild(iframe);
+            setTimeout(function () { document.body.removeChild(iframe); }, 30000);
+            toast('✅ Manual clip downloaded!');
+        } catch (err) { toast('❌ Error: ' + err.message); }
+    });
 
     // ===== RISET KONTEN =====
     document.getElementById('btnRiset').addEventListener('click', doRiset);

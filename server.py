@@ -190,6 +190,24 @@ def analyze_audio():
                 merged[-1]['intensity'] = max(merged[-1]['intensity'], clip['intensity'])
             else:
                 merged.append(clip)
+        # Detect kaget (sudden spike): rate of change in volume
+        # Compare peak intensity vs area before it
+        for clip in merged:
+            # Find the waveform index range for this clip
+            clip_start_idx = max(0, int((clip['start'] / duration) * len(waveform)) - 3)
+            clip_end_idx = min(len(waveform), int((clip['end'] / duration) * len(waveform)) + 1)
+            # Average before the clip (quiet area)
+            before_start = max(0, clip_start_idx - 5)
+            before_avg = sum(waveform[before_start:clip_start_idx]) / max(1, clip_start_idx - before_start) if clip_start_idx > before_start else 0
+            # Spike = difference between peak and before
+            spike = clip['intensity'] - before_avg
+            clip['kaget_score'] = round(max(0, spike * 10), 2)  # 0-10 scale
+            # Lucu score = combination of intensity + spike + duration sweet spot (5-20s is funniest)
+            dur_bonus = 1.0 if 5 <= clip['duration'] <= 20 else 0.7
+            clip['lucu_score'] = round((clip['intensity'] * 0.4 + spike * 0.4 + dur_bonus * 0.2) * 10, 2)
+            # Tag kaget if spike is high
+            if clip['kaget_score'] >= 4:
+                clip['tag_kaget'] = True
         merged.sort(key=lambda c: c['intensity'], reverse=True)
         for i, c in enumerate(merged):
             c['id'] = i + 1

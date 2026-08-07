@@ -58,7 +58,7 @@
             <div class="editor-grid">
                 <div class="col-left">
                     <div class="col-head"><h3 id="vidTitle">—</h3><span class="badge" id="clipCount">0</span></div>
-                    <select class="filter" id="filterSel"><option value="intensity">🔊 Audio Peak</option><option value="comments">💬 Komentar</option><option value="duration">⏱ Pendek</option></select>
+                    <select class="filter" id="filterSel"><option value="intensity">🔊 Audio Peak</option><option value="lucu">😂 Paling Lucu</option><option value="kaget">😱 Adegan Kaget</option><option value="comments">💬 Komentar</option><option value="duration">⏱ Pendek</option></select>
                     <div class="clip-list" id="clipList"></div>
                     <button class="btn outline full" id="clipBack">← Link Baru</button>
                 </div>
@@ -86,6 +86,14 @@
                     <div class="transcript-box"><b>Transkrip</b><p id="dT">—</p></div>
                     <button class="btn accent full" id="btnPre">▶ Preview</button>
                     <button class="btn green full" id="btnDl">⬇ Download</button>
+                    <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
+                    <h4>Edit Manual</h4>
+                    <div style="display:flex;gap:6px;margin-bottom:6px">
+                        <div style="flex:1"><label style="font-size:10px;color:var(--sub)">Start (detik)</label><input type="number" id="manualStart" class="inp" style="padding:6px 8px;font-size:12px" placeholder="0"></div>
+                        <div style="flex:1"><label style="font-size:10px;color:var(--sub)">End (detik)</label><input type="number" id="manualEnd" class="inp" style="padding:6px 8px;font-size:12px" placeholder="0"></div>
+                    </div>
+                    <button class="btn outline full" id="btnManualPreview" style="font-size:12px">👁 Preview Manual</button>
+                    <button class="btn green full" id="btnManualDl" style="font-size:12px">⬇ Download Manual Clip</button>
                 </div>
             </div>
         </div>
