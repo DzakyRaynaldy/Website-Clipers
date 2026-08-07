@@ -237,6 +237,8 @@
         tlState.end = duration || 60;
         updateTLRange();
         if (!_tlBound) { _tlBound = true; bindTimelineEvents(); }
+        // Instant render — don't wait for video
+        updateTLRange();
     }
 
     function updateTLRange() {
@@ -246,10 +248,11 @@
         var hR = document.getElementById('tlHandleR');
         if (!track) return;
         var W = track.offsetWidth;
-        if (!W || !duration) return;
+        if (!W) return;
+        var dur = duration || tlState.end || 60;
         tlState.trackW = W;
-        var lPx = (tlState.start / duration) * W;
-        var rPx = (tlState.end / duration) * W;
+        var lPx = (tlState.start / dur) * W;
+        var rPx = (tlState.end / dur) * W;
         range.style.left = lPx + 'px';
         range.style.width = (rPx - lPx) + 'px';
         hL.style.left = (lPx - 10) + 'px';
@@ -270,7 +273,8 @@
         function pxToTime(clientX) {
             var rect = track.getBoundingClientRect();
             var x = clientX - rect.left;
-            return Math.max(0, Math.min(duration, (x / rect.width) * duration));
+            var dur = duration || tlState.end || 60;
+            return Math.max(0, Math.min(dur, (x / rect.width) * dur));
         }
 
         function startDrag(e, which) {
@@ -313,16 +317,22 @@
         });
     }
 
-    // Playhead loop
+    // Playhead loop — smooth, independent of video state
     (function playheadLoop() {
-        if (ytPlayer && ytPlayer.getCurrentTime) {
-            var t = ytPlayer.getCurrentTime();
-            var track = document.getElementById('tlTrack');
-            var ph = document.getElementById('tlPlayhead');
-            if (track && ph && duration) {
-                ph.style.left = ((t / duration) * track.offsetWidth) + 'px';
+        try {
+            if (ytPlayer && typeof ytPlayer.getCurrentTime === 'function') {
+                var t = ytPlayer.getCurrentTime();
+                var track = document.getElementById('tlTrack');
+                var ph = document.getElementById('tlPlayhead');
+                var dur = duration || tlState.end || 60;
+                if (track && ph && t >= 0) {
+                    var px = (t / dur) * track.offsetWidth;
+                    ph.style.transform = 'translateX(' + px + 'px)';
+                    ph.style.left = '0px';
+                    ph.style.willChange = 'transform';
+                }
             }
-        }
+        } catch(e) {}
         requestAnimationFrame(playheadLoop);
     })();
 
