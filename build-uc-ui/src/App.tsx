@@ -496,6 +496,8 @@ function ClipEditor({ addToast }: any) {
 function RisetKonten({ addToast }: any) {
   const [kategori, setKategori] = useState('gaming')
   const [target, setTarget] = useState('indonesia')
+  const [jumlah, setJumlah] = useState('5')
+  const [ideSpesifik, setIdeSpesifik] = useState('')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<IdeKonten[]>([])
 
@@ -509,9 +511,11 @@ function RisetKonten({ addToast }: any) {
   ]
 
   const TARGET_OPTIONS = [
-    { value: 'indonesia', label: 'Indonesia 🇮🇩' },
+    { value: 'indonesia', label: 'ID Indonesia 🇮🇩' },
     { value: 'global', label: 'Global 🌍' },
   ]
+
+  const JUMLAH_OPTIONS = ['5', '10', '15', '20'].map(n => ({ value: n, label: `${n} Topik` }))
 
   const generate = async () => {
     setLoading(true)
@@ -520,9 +524,11 @@ function RisetKonten({ addToast }: any) {
       const data = await API.trending(kategori)
       
       // Create idea cards from video data
-      const ideaCards = data.slice(0, 5).map((v, i) => ({
+      const ideaCards = data.slice(0, parseInt(jumlah)).map((v, i) => ({
         ...v,
-        deskripsi: `Trending di kategori ${kategori} untuk audience ${target === 'indonesia' ? 'Indonesia' : 'Global'}. Video viral dengan engagement tinggi.`,
+        deskripsi: ideSpesifik 
+          ? `Trending di "${ideSpesifik}" untuk kategori ${kategori}, target audience ${target === 'indonesia' ? 'Indonesia' : 'Global'}.`
+          : `Trending di kategori ${kategori} untuk audience ${target === 'indonesia' ? 'Indonesia' : 'Global'}. Video viral dengan engagement tinggi.`,
       }))
       
       setResults(ideaCards)
@@ -536,27 +542,58 @@ function RisetKonten({ addToast }: any) {
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
-      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 28, marginBottom: 24 }}>
-        <h2 style={{ margin: '0 0 20px', fontSize: 15, fontWeight: 700, color: '#a855f7' }}>💡 LANGKAH 1 — Setup Riset</h2>
+      {/* Header */}
+      <div style={{ marginBottom: 32, textAlign: 'center' }}>
+        <h1 style={{ margin: '0 0 8px', fontSize: 24, fontWeight: 900, color: 'var(--foreground)' }}>
+          💡 Riset Konten
+        </h1>
+        <p style={{ margin: 0, fontSize: 13, color: 'var(--muted-foreground)' }}>
+          Temukan ide viral dari trending YouTube, generate judul, keyword & hashtag
+        </p>
+      </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 18 }}>
+      {/* Form Card */}
+      <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 28, marginBottom: 24 }}>
+        <h2 style={{ margin: '0 0 20px', fontSize: 15, fontWeight: 700, color: '#a855f7' }}>LANGKAH 1 — Pilih Kategori & Filter</h2>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 16, marginBottom: 18 }}>
           <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Kategori</label>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>KATEGORI</label>
             <select value={kategori} onChange={e => setKategori(e.target.value)} style={{ width: '100%' }}>
               {KATEGORI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Target Audiens</label>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>TARGET</label>
             <select value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%' }}>
               {TARGET_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>JUMLAH</label>
+            <select value={jumlah} onChange={e => setJumlah(e.target.value)} style={{ width: '100%' }}>
+              {JUMLAH_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
         </div>
 
-        <button className="btn-primary" onClick={generate} disabled={loading} style={{ width: '100%' }}>
-          {loading ? '⏳ Menganalisis...' : '✨ Generate Ide Konten'}
+        <div style={{ marginBottom: 18 }}>
+          <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+            IDE SPESIFIK (OPSIONAL)
+          </label>
+          <input
+            type="text"
+            placeholder="Contoh: misteri laut dalam, game horror indie..."
+            value={ideSpesifik}
+            onChange={e => setIdeSpesifik(e.target.value)}
+            style={{ width: '100%' }}
+          />
+        </div>
+
+        <button className="btn-primary" onClick={generate} disabled={loading} style={{ width: '100%', padding: '12px', fontSize: 14 }}>
+          {loading ? '⏳ Menganalisis...' : '✨ Generate Riset Konten'}
         </button>
       </div>
 
