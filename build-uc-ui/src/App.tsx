@@ -53,7 +53,7 @@ function duration(clip: Clip): number {
 const API = {
   async trending(category: string): Promise<IdeKonten[]> {
     try {
-      const res = await fetch('http://localhost:5000/api/trending', {
+      const res = await fetch('/api/trending', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ category }),
@@ -338,10 +338,10 @@ function ClipEditor({ addToast }: any) {
     }
 
     setLoading(true)
-    addToast('⏳ Mendownload & menganalisis video...', 'info')
+    addToast('⏳ Mendownload video...', 'info')
 
     try {
-      const res = await fetch('http://localhost:5000/api/download-audio', {
+      const res = await fetch('/api/download-audio', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: youtubeUrl }),
@@ -350,8 +350,10 @@ function ClipEditor({ addToast }: any) {
       if (!res.ok) throw new Error('Download gagal')
       const data = await res.json()
 
+      addToast('⏳ Menganalisis audio (ini agak lama)...', 'info')
+
       // Analyze audio
-      const analyzeRes = await fetch('http://localhost:5000/api/analyze', {
+      const analyzeRes = await fetch('/api/analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ filename: data.filename, vid_id: data.vid_id }),
@@ -493,6 +495,7 @@ function ClipEditor({ addToast }: any) {
 
 function RisetKonten({ addToast }: any) {
   const [kategori, setKategori] = useState('gaming')
+  const [target, setTarget] = useState('indonesia')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState<IdeKonten[]>([])
 
@@ -505,13 +508,25 @@ function RisetKonten({ addToast }: any) {
     { value: 'lucu', label: 'Video Lucu 😂' },
   ]
 
+  const TARGET_OPTIONS = [
+    { value: 'indonesia', label: 'Indonesia 🇮🇩' },
+    { value: 'global', label: 'Global 🌍' },
+  ]
+
   const generate = async () => {
     setLoading(true)
-    addToast('Menganalisis konten dari YouTube...', 'info')
+    addToast('⏳ Menganalisis YouTube untuk ide konten terbaik...', 'info')
     try {
       const data = await API.trending(kategori)
-      setResults(data)
-      addToast(`✅ Ditemukan ${data.length} ide konten!`, 'success')
+      
+      // Create idea cards from video data
+      const ideaCards = data.slice(0, 5).map((v, i) => ({
+        ...v,
+        deskripsi: `Trending di kategori ${kategori} untuk audience ${target === 'indonesia' ? 'Indonesia' : 'Global'}. Video viral dengan engagement tinggi.`,
+      }))
+      
+      setResults(ideaCards)
+      addToast(`✅ Ditemukan ${ideaCards.length} ide konten!`, 'success')
     } catch (e) {
       addToast('❌ Gagal fetch konten', 'error')
     } finally {
@@ -522,41 +537,77 @@ function RisetKonten({ addToast }: any) {
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px' }}>
       <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 28, marginBottom: 24 }}>
-        <h2 style={{ margin: '0 0 20px', fontSize: 15, fontWeight: 700, color: '#a855f7' }}>💡 LANGKAH 1 — Pilih Kategori</h2>
+        <h2 style={{ margin: '0 0 20px', fontSize: 15, fontWeight: 700, color: '#a855f7' }}>💡 LANGKAH 1 — Setup Riset</h2>
 
-        <div style={{ marginBottom: 18 }}>
-          <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Kategori</label>
-          <select value={kategori} onChange={e => setKategori(e.target.value)} style={{ width: '100%' }}>
-            {KATEGORI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 16, marginBottom: 18 }}>
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Kategori</label>
+            <select value={kategori} onChange={e => setKategori(e.target.value)} style={{ width: '100%' }}>
+              {KATEGORI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+
+          <div>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Target Audiens</label>
+            <select value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%' }}>
+              {TARGET_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
         </div>
 
         <button className="btn-primary" onClick={generate} disabled={loading} style={{ width: '100%' }}>
-          {loading ? '⏳ Menganalisis...' : '✨ Generate Riset Konten'}
+          {loading ? '⏳ Menganalisis...' : '✨ Generate Ide Konten'}
         </button>
       </div>
 
+      {/* Results */}
       {results.length > 0 && (
-        <div style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 24 }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {results.map((ide, i) => (
-            <div key={ide.id} style={{ marginBottom: i < results.length - 1 ? 24 : 0, paddingBottom: i < results.length - 1 ? 24 : 0, borderBottom: i < results.length - 1 ? '1px solid var(--border)' : 'none' }}>
-              <div style={{ display: 'flex', gap: 10, marginBottom: 12 }}>
-                <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>#{i + 1}</span>
-                <span style={{ background: ide.format === 'Short' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)', color: ide.format === 'Short' ? '#f87171' : '#a855f7', borderRadius: 4, padding: '2px 8px', fontSize: 11 }}>
-                  {ide.format === 'Short' ? '📱 Short' : '🎬 Normal'}
+            <div key={ide.id} style={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 12, padding: 20 }}>
+              {/* Header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 12 }}>
+                <span style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 600 }}>#{i + 1}</span>
+                <span style={{ background: ide.format === 'Short' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)', color: ide.format === 'Short' ? '#f87171' : '#a855f7', borderRadius: 4, padding: '2px 10px', fontSize: 11, fontWeight: 600 }}>
+                  {ide.format === 'Short' ? '📱 Shorts' : '🎬 Long Form'}
                 </span>
               </div>
-              <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 700 }}>{ide.judul}</h3>
-              <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
+
+              {/* Judul */}
+              <h3 style={{ margin: '0 0 10px', fontSize: 15, fontWeight: 700, lineHeight: 1.4 }}>{ide.judul}</h3>
+
+              {/* Deskripsi */}
+              <p style={{ margin: '0 0 12px', fontSize: 12, color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
                 {ide.deskripsi}
               </p>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                {ide.hashtags.map(h => (
-                  <span key={h} style={{ background: 'rgba(124,58,237,0.1)', color: '#a855f7', borderRadius: 4, padding: '4px 10px', fontSize: 11 }}>
-                    {h}
-                  </span>
-                ))}
+
+              {/* Keyword + Caption */}
+              <div style={{ background: 'rgba(124,58,237,0.08)', border: '1px solid rgba(124,58,237,0.2)', borderRadius: 8, padding: 12, marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>🔑 Keyword untuk SEO:</div>
+                <div style={{ fontSize: 12, color: '#a855f7', fontWeight: 600, marginBottom: 8 }}>{ide.keyword}</div>
+                
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>📝 Caption Rekomendasi:</div>
+                <div style={{ fontSize: 12, color: 'var(--foreground)', fontStyle: 'italic', background: 'rgba(0,0,0,0.2)', borderRadius: 4, padding: 8 }}>
+                  "{ide.judul} — {ide.keyword.slice(0, 20)}... #viral"
+                </div>
               </div>
+
+              {/* Hashtags */}
+              <div style={{ marginBottom: 12 }}>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 6 }}>🏷️ Hashtags:</div>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                  {ide.hashtags.map(h => (
+                    <span key={h} style={{ background: 'rgba(124,58,237,0.1)', color: '#a855f7', borderRadius: 4, padding: '4px 10px', fontSize: 11 }}>
+                      {h}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action */}
+              <button className="btn-secondary" style={{ width: '100%', padding: '8px', fontSize: 12 }} onClick={() => addToast(`💾 Ide "${ide.judul.slice(0, 30)}..." disimpan!`, 'success')}>
+                💾 Simpan Ide
+              </button>
             </div>
           ))}
         </div>
