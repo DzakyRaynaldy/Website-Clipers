@@ -229,70 +229,103 @@
     }
 
     // ===== CAPCUT TIMELINE EDITOR =====
-    var tlState = { start: 0, end: 0, dragging: null };
+    var tlState = { start: 0, end: 0, dragging: null, trackW: 0 };
+    var _tlBound = false;
+
     function initTimeline() {
-        tlState.start = 0; tlState.end = duration;
+        tlState.start = 0;
+        tlState.end = duration || 60;
         updateTLRange();
+        if (!_tlBound) { _tlBound = true; bindTimelineEvents(); }
     }
+
     function updateTLRange() {
         var track = document.getElementById('tlTrack');
         var range = document.getElementById('tlRange');
         var hL = document.getElementById('tlHandleL');
         var hR = document.getElementById('tlHandleR');
-        if (!track || !duration) return;
-        var w = track.offsetWidth;
-        var lPct = (tlState.start / duration) * 100;
-        var rPct = (tlState.end / duration) * 100;
-        range.style.left = lPct + '%';
-        range.style.width = (rPct - lPct) + '%';
-        hL.style.left = 'calc(' + lPct + '% - 8px)';
-        hR.style.left = 'calc(' + rPct + '% - 8px)';
+        if (!track) return;
+        var W = track.offsetWidth;
+        if (!W || !duration) return;
+        tlState.trackW = W;
+        var lPx = (tlState.start / duration) * W;
+        var rPx = (tlState.end / duration) * W;
+        range.style.left = lPx + 'px';
+        range.style.width = (rPx - lPx) + 'px';
+        hL.style.left = (lPx - 10) + 'px';
+        hR.style.left = (rPx - 10) + 'px';
         document.getElementById('tlStartLabel').textContent = fmt(tlState.start);
         document.getElementById('tlEndLabel').textContent = fmt(tlState.end);
         document.getElementById('tlDurLabel').textContent = 'Durasi: ' + Math.round(tlState.end - tlState.start) + 's';
     }
+
     function tlSetStart(t) { tlState.start = Math.max(0, Math.min(t, tlState.end - 1)); updateTLRange(); }
     function tlSetEnd(t) { tlState.end = Math.min(duration, Math.max(t, tlState.start + 1)); updateTLRange(); }
-    // Drag handles
-    function handleDrag(e, which) {
-        e.preventDefault(); e.stopPropagation();
-        tlState.dragging = which;
+
+    function bindTimelineEvents() {
         var track = document.getElementById('tlTrack');
-        function onMove(ev) {
+        var hL = document.getElementById('tlHandleL');
+        var hR = document.getElementById('tlHandleR');
+
+        function pxToTime(clientX) {
             var rect = track.getBoundingClientRect();
-            var x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
-            var pct = Math.max(0, Math.min(1, x / rect.width));
-            var t = pct * duration;
-            if (which === 'left') tlSetStart(t); else tlSetEnd(t);
+            var x = clientX - rect.left;
+            return Math.max(0, Math.min(duration, (x / rect.width) * duration));
         }
-        function onUp() { tlState.dragging = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp); }
+
+        function startDrag(e, which) {
+            e.preventDefault();
+            e.stopPropagation();
+            tlState.dragging = which;
+            document.body.style.cursor = 'ew-resize';
+            document.body.style.userSelect = 'none';
+        }
+
+        function onMove(e) {
+            if (!tlState.dragging) return;
+            var cx = e.touches ? e.touches[0].clientX : e.clientX;
+            var t = pxToTime(cx);
+            if (tlState.dragging === 'left') tlSetStart(t);
+            else tlSetEnd(t);
+        }
+
+        function onUp() {
+            if (!tlState.dragging) return;
+            tlState.dragging = null;
+            document.body.style.cursor = '';
+            document.body.style.userSelect = '';
+        }
+
+        hL.addEventListener('mousedown', function (e) { startDrag(e, 'left'); });
+        hL.addEventListener('touchstart', function (e) { startDrag(e, 'left'); }, { passive: false });
+        hR.addEventListener('mousedown', function (e) { startDrag(e, 'right'); });
+        hR.addEventListener('touchstart', function (e) { startDrag(e, 'right'); }, { passive: false });
+
         document.addEventListener('mousemove', onMove);
         document.addEventListener('mouseup', onUp);
-        document.addEventListener('touchmove', onMove);
+        document.addEventListener('touchmove', onMove, { passive: false });
         document.addEventListener('touchend', onUp);
+
+        // Click on track = seek
+        track.addEventListener('click', function (e) {
+            if (tlState.dragging) return;
+            if (ytPlayer && ytPlayer.seekTo) { ytPlayer.seekTo(pxToTime(e.clientX), true); }
+        });
     }
-    document.getElementById('tlHandleL').addEventListener('mousedown', function (e) { handleDrag(e, 'left'); });
-    document.getElementById('tlHandleL').addEventListener('touchstart', function (e) { handleDrag(e, 'left'); });
-    document.getElementById('tlHandleR').addEventListener('mousedown', function (e) { handleDrag(e, 'right'); });
-    document.getElementById('tlHandleR').addEventListener('touchstart', function (e) { handleDrag(e, 'right'); });
-    // Click on track to set playhead + drag range
-    document.getElementById('tlTrack').addEventListener('click', function (e) {
-        if (tlState.dragging) return;
-        var rect = this.getBoundingClientRect();
-        var pct = (e.clientX - rect.left) / rect.width;
-        var t = pct * duration;
-        if (ytPlayer) { ytPlayer.seekTo(t, true); }
-    });
-    // Update playhead position every frame
-    function updatePlayhead() {
-        if (!ytPlayer || !ytPlayer.getCurrentTime) { requestAnimationFrame(updatePlayhead); return; }
-        var t = ytPlayer.getCurrentTime();
-        var pct = (t / duration) * 100;
-        var ph = document.getElementById('tlPlayhead');
-        if (ph) ph.style.left = pct + '%';
-        requestAnimationFrame(updatePlayhead);
-    }
-    requestAnimationFrame(updatePlayhead);
+
+    // Playhead loop
+    (function playheadLoop() {
+        if (ytPlayer && ytPlayer.getCurrentTime) {
+            var t = ytPlayer.getCurrentTime();
+            var track = document.getElementById('tlTrack');
+            var ph = document.getElementById('tlPlayhead');
+            if (track && ph && duration) {
+                ph.style.left = ((t / duration) * track.offsetWidth) + 'px';
+            }
+        }
+        requestAnimationFrame(playheadLoop);
+    })();
+
     // Set Start / End buttons
     document.getElementById('btnSetStart').addEventListener('click', function () {
         if (!ytPlayer || !ytPlayer.getCurrentTime) return;
@@ -304,9 +337,10 @@
         tlSetEnd(ytPlayer.getCurrentTime());
         toast('] End: ' + fmt(tlState.end));
     });
-    // Reset range
-    document.getElementById('btnResetRange').addEventListener('click', function () { tlState.start = 0; tlState.end = duration; updateTLRange(); toast('Range reset'); });
-    // Download manual clip
+    document.getElementById('btnResetRange').addEventListener('click', function () {
+        tlState.start = 0; tlState.end = duration;
+        updateTLRange(); toast('Range reset');
+    });
     document.getElementById('btnManualDl').addEventListener('click', async function () {
         if (!vidId) { toast('Analisis video dulu!'); return; }
         toast('⏳ Download clip (' + Math.round(tlState.end - tlState.start) + 's)...');
