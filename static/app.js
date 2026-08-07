@@ -41,6 +41,7 @@
     var stepNames = ['📥 Download', '🔍 Analisis', '💬 Komentar', '🏷️ Subtitle'];
 
     window.onYouTubeIframeAPIReady = function () { ytReady = true; };
+    if (typeof window._ytReady !== 'undefined') window._ytReady.then(function () { ytReady = true; });
 
     // ===== CLIP =====
     document.getElementById('clipGo').addEventListener('click', doAnalyze);
