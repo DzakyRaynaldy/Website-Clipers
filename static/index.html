@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UniversalClip</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <!-- NAV -->
+    <nav class="topbar">
+        <div class="brand">✂️ UniversalClip</div>
+        <div class="tabs">
+            <button class="tab active" data-t="home">🏠 Home</button>
+            <button class="tab" data-t="clip">🎬 Clip</button>
+            <button class="tab" data-t="riset">💡 Riset Konten</button>
+        </div>
+        <button class="theme-btn" id="themeBtn" title="Ganti tema">🌙</button>
+    </nav>
+
+    <!-- HOME -->
+    <section class="page active" id="pg-home">
+        <div class="container center">
+            <div class="hero">
+                <h1>✂️ UniversalClip</h1>
+                <p>Auto-clip momen epic & riset konten viral — 100% gratis</p>
+            </div>
+            <div class="home-btns">
+                <button class="btn btn-home-clip" id="goClip">🎬 Mulai Clip</button>
+                <button class="btn btn-home-riset" id="goRiset">💡 Riset Konten</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- CLIP -->
+    <section class="page" id="pg-clip">
+        <div class="container center" id="clipLand">
+            <div class="hero">
+                <h1>🎬 Auto-Clip Editor</h1>
+                <p>Paste link YouTube → auto-detect momen epic, kata mutiara, highlight</p>
+                <div class="input-row">
+                    <input id="clipUrl" class="inp" type="text" placeholder="Paste link YouTube...">
+                    <button class="btn accent" id="clipGo">⚡ Analisis</button>
+                </div>
+                <p class="hint">100% gratis · audio-only · subtitle + komentar</p>
+            </div>
+        </div>
+        <div class="container center hidden" id="clipLoad">
+            <div class="load-card">
+                <div class="spinner"></div>
+                <p class="load-title" id="loadText">Mempersiapkan...</p>
+                <div class="bar-wrap"><div class="bar"><div class="bar-fill" id="barFill"></div></div><span class="bar-pct" id="barPct">0%</span></div>
+                <div class="pills" id="stepsPills"></div>
+            </div>
+        </div>
+        <div class="hidden" id="clipEdit">
+            <div class="editor-grid">
+                <div class="col-left">
+                    <div class="col-head"><h3 id="vidTitle">—</h3><span class="badge" id="clipCount">0</span></div>
+                    <select class="filter" id="filterSel"><option value="intensity">🔊 Audio Peak</option><option value="comments">💬 Komentar</option><option value="duration">⏱ Pendek</option></select>
+                    <div class="clip-list" id="clipList"></div>
+                    <button class="btn outline full" id="clipBack">← Link Baru</button>
+                </div>
+                <div class="col-center">
+                    <div class="player"><div id="ytPlayer"></div></div>
+                    <div class="controls">
+                        <button class="ctrl" id="btnPlay">▶</button>
+                        <button class="ctrl" id="btnB5">⏪</button>
+                        <button class="ctrl" id="btnF5">⏩</button>
+                        <span class="tlbl" id="timeNow">0:00</span>
+                        <input type="range" id="seek" min="0" max="1000" value="0" class="slider">
+                        <span class="tlbl" id="timeEnd">0:00</span>
+                    </div>
+                    <div class="timeline" id="timeline"><div class="tlph" id="tlph"></div></div>
+                </div>
+                <div class="col-right">
+                    <h4>Detail Clip</h4>
+                    <div class="det"><span>Start</span><span id="dS">—</span></div>
+                    <div class="det"><span>End</span><span id="dE">—</span></div>
+                    <div class="det"><span>Durasi</span><span id="dD">—</span></div>
+                    <div class="det"><span>Platform</span><span id="dP">—</span></div>
+                    <div class="det"><span>Intensitas</span><span id="dI">—</span></div>
+                    <div class="det"><span>Keyword</span><span id="dK">—</span></div>
+                    <div class="det"><span>Komentar</span><span id="dC">—</span></div>
+                    <div class="transcript-box"><b>Transkrip</b><p id="dT">—</p></div>
+                    <button class="btn accent full" id="btnPre">▶ Preview</button>
+                    <button class="btn green full" id="btnDl">⬇ Download</button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- RISET KONTEN -->
+    <section class="page" id="pg-riset">
+        <div class="riset-wrap">
+            <div class="riset-header">
+                <h2>💡 Riset Konten</h2>
+                <p>Temukan ide viral dari trending YouTube, generate judul, keyword & hashtag</p>
+            </div>
+
+            <!-- Workflow Card -->
+            <div class="wf-card">
+                <div class="wf-top">
+                    <div class="wf-icon">💡</div>
+                    <div><span class="wf-step">LANGKAH 1</span><span class="wf-name">Pilih Kategori & Filter</span></div>
+                </div>
+                <div class="wf-body">
+                    <div class="wf-grid">
+                        <div class="wf-field">
+                            <label>KATEGORI</label>
+                            <select id="catSelect" class="wf-sel">
+                                <option value="gaming">🎮 Gaming</option>
+                                <option value="berita">📰 Berita</option>
+                                <option value="anime">🎌 Anime</option>
+                                <option value="cerita">📖 Cerita</option>
+                                <option value="sejarah">🏛️ Sejarah</option>
+                                <option value="lucu">😂 Video Lucu</option>
+                            </select>
+                        </div>
+                        <div class="wf-field">
+                            <label>TARGET</label>
+                            <select id="audSelect" class="wf-sel">
+                                <option value="indonesia">🇮🇩 Indonesia</option>
+                                <option value="global">🌐 Global</option>
+                            </select>
+                        </div>
+                        <div class="wf-field">
+                            <label>JUMLAH</label>
+                            <select id="jumSelect" class="wf-sel">
+                                <option value="3">3 Topik</option>
+                                <option value="5" selected>5 Topik</option>
+                                <option value="10">10 Topik</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="wf-field">
+                        <label>IDE SPESIFIK (OPSIONAL)</label>
+                        <input type="text" id="ideInput" class="wf-inp" placeholder="Contoh: misteri laut dalam, game horror indie...">
+                    </div>
+                    <button class="btn btn-wf" id="btnRiset">✨ Generate Riset Konten</button>
+                </div>
+            </div>
+
+            <!-- Loading -->
+            <div class="hidden" id="risetLoad">
+                <div class="load-card"><div class="spinner"></div><p id="risetText">🔍 Mencari trending...</p></div>
+            </div>
+
+            <!-- Results -->
+            <div class="hidden" id="risetResult">
+                <div class="res-head"><h3 id="resTitle">—</h3><div class="kpills" id="resKw"></div></div>
+                <div class="saran-list" id="saranList"></div>
+            </div>
+        </div>
+    </section>
+
+    <div class="toast" id="toast"></div>
+    <script src="https://www.youtube.com/iframe_api"></script>
+    <script src="app.js"></script>
+</body>
+</html>

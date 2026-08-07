@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipCutter - Windah Basudara Clipper</title>
+    <link rel="stylesheet" href="style.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app">
+        <!-- Header -->
+        <header class="header">
+            <div class="logo">
+                <span class="logo-icon">✂️</span>
+                <h1>ClipCutter</h1>
+                <span class="badge">MVP</span>
+            </div>
+            <p class="subtitle">Windah Basudara Clip Editor</p>
+        </header>
+
+        <!-- Upload Area -->
+        <section class="upload-area" id="uploadArea">
+            <div class="upload-box" id="uploadBox">
+                <div class="upload-icon">🎬</div>
+                <h2>Upload Video Windah</h2>
+                <p>Drag & drop file video atau klik untuk pilih</p>
+                <p class="upload-hint">MP4, WebM, MOV — Max 2GB</p>
+                <input type="file" id="fileInput" accept="video/*" hidden>
+                <button class="btn btn-primary" id="browseBtn">Browse File</button>
+            </div>
+        </section>
+
+        <!-- Editor -->
+        <section class="editor hidden" id="editor">
+            <!-- Video Preview -->
+            <div class="video-container">
+                <video id="videoPlayer" preload="auto"></video>
+                <div class="video-controls">
+                    <button class="ctrl-btn" id="playBtn">▶</button>
+                    <span class="time-display">
+                        <span id="currentTime">00:00.000</span> / <span id="duration">00:00.000</span>
+                    </span>
+                    <input type="range" id="seekBar" min="0" max="100" value="0" step="0.01" class="seek-bar">
+                    <button class="ctrl-btn" id="fullscreenBtn">⛶</button>
+                </div>
+            </div>
+
+            <!-- Waveform & Trimmer -->
+            <div class="waveform-section">
+                <div class="waveform-header">
+                    <h3>Waveform</h3>
+                    <div class="zoom-controls">
+                        <button class="btn-small" id="zoomOut">−</button>
+                        <span id="zoomLevel">1x</span>
+                        <button class="btn-small" id="zoomIn">+</button>
+                    </div>
+                </div>
+                <div class="waveform-container" id="waveformContainer">
+                    <canvas id="waveformCanvas"></canvas>
+                    <!-- Trim handles -->
+                    <div class="trim-region" id="trimRegion">
+                        <div class="trim-handle trim-start" id="trimStart"></div>
+                        <div class="trim-overlay-left"></div>
+                        <div class="trim-selected" id="trimSelected"></div>
+                        <div class="trim-overlay-right"></div>
+                        <div class="trim-handle trim-end" id="trimEnd"></div>
+                    </div>
+                    <!-- Playhead -->
+                    <div class="playhead" id="playhead"></div>
+                </div>
+            </div>
+
+            <!-- Trim Info -->
+            <div class="trim-info">
+                <div class="info-card">
+                    <span class="info-label">Start</span>
+                    <span class="info-value" id="trimStartTime">00:00.000</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">End</span>
+                    <span class="info-value" id="trimEndTime">00:00.000</span>
+                </div>
+                <div class="info-card">
+                    <span class="info-label">Durasi Clip</span>
+                    <span class="info-value" id="trimDuration">00:00.000</span>
+                </div>
+                <div class="info-card highlight">
+                    <span class="info-label">Status</span>
+                    <span class="info-value" id="trimStatus">—</span>
+                </div>
+            </div>
+
+            <!-- Quick Actions -->
+            <div class="actions">
+                <button class="btn btn-secondary" id="previewClipBtn">👁 Preview Clip</button>
+                <button class="btn btn-secondary" id="setStartBtn">📍 Set Start (I)</button>
+                <button class="btn btn-secondary" id="setEndBtn">📍 Set End (O)</button>
+                <button class="btn btn-secondary" id="resetBtn">↺ Reset</button>
+                <button class="btn btn-primary btn-glow" id="exportBtn">✂️ Export Clip</button>
+            </div>
+
+            <!-- Keyboard shortcuts -->
+            <div class="shortcuts">
+                <span>⌨️ Shortcuts:</span>
+                <kbd>Space</kbd> Play/Pause &nbsp;
+                <kbd>I</kbd> Set Start &nbsp;
+                <kbd>O</kbd> Set End &nbsp;
+                <kbd>←→</kbd> Seek ±1s &nbsp;
+                <kbd>J</kbd><kbd>L</kbd> Seek ±5s
+            </div>
+        </section>
+
+        <!-- Export Modal -->
+        <div class="modal hidden" id="exportModal">
+            <div class="modal-content">
+                <h2>✂️ Export Clip</h2>
+                <div class="export-options">
+                    <label>Format:</label>
+                    <select id="exportFormat">
+                        <option value="webm">WebM (browser-native)</option>
+                        <option value="mp4">MP4</option>
+                    </select>
+                    <label>Resolusi:</label>
+                    <select id="exportRes">
+                        <option value="original">Original</option>
+                        <option value="1080">1080p (Shorts/TikTok)</option>
+                        <option value="720">720p</option>
+                    </select>
+                </div>
+                <div class="export-progress hidden" id="exportProgress">
+                    <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+                    <span id="progressText">Processing...</span>
+                </div>
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" id="cancelExport">Batal</button>
+                    <button class="btn btn-primary btn-glow" id="startExport">Export Sekarang</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
