@@ -72,6 +72,25 @@
                         <input type="range" id="seek" min="0" max="1000" value="0" class="slider">
                         <span class="tlbl" id="timeEnd">0:00</span>
                     </div>
+                    <!-- CapCut-style timeline editor -->
+                    <div class="timeline-editor" id="timelineEditor" style="display:none">
+                        <div class="tl-row">
+                            <span class="tl-label">✂️ Manual Timeline</span>
+                            <button class="btn outline" id="btnSplit" style="font-size:11px;padding:3px 8px">✂ Split</button>
+                            <button class="btn outline" id="btnResetRange" style="font-size:11px;padding:3px 8px">↻ Reset</button>
+                        </div>
+                        <div class="tl-track" id="tlTrack">
+                            <div class="tl-range" id="tlRange"></div>
+                            <div class="tl-handle tl-handle-l" id="tlHandleL">◀</div>
+                            <div class="tl-handle tl-handle-r" id="tlHandleR">▶</div>
+                            <div class="tl-playhead" id="tlPlayhead">▼</div>
+                        </div>
+                        <div class="tl-times">
+                            <span id="tlStartLabel">0:00</span>
+                            <span id="tlDurLabel">Duration: 0s</span>
+                            <span id="tlEndLabel">0:00</span>
+                        </div>
+                    </div>
                     <div class="timeline" id="timeline"><div class="tlph" id="tlph"></div></div>
                 </div>
                 <div class="col-right">
@@ -87,13 +106,11 @@
                     <button class="btn accent full" id="btnPre">▶ Preview</button>
                     <button class="btn green full" id="btnDl">⬇ Download</button>
                     <hr style="border:0;border-top:1px solid var(--border);margin:12px 0">
-                    <h4>Edit Manual</h4>
-                    <div style="display:flex;gap:6px;margin-bottom:6px">
-                        <div style="flex:1"><label style="font-size:10px;color:var(--sub)">Start (detik)</label><input type="number" id="manualStart" class="inp" style="padding:6px 8px;font-size:12px" placeholder="0"></div>
-                        <div style="flex:1"><label style="font-size:10px;color:var(--sub)">End (detik)</label><input type="number" id="manualEnd" class="inp" style="padding:6px 8px;font-size:12px" placeholder="0"></div>
+                    <div style="display:flex;gap:6px">
+                        <button class="btn accent full" id="btnSetStart" style="font-size:12px">[ Set Start</button>
+                        <button class="btn accent full" id="btnSetEnd" style="font-size:12px">Set End ]</button>
                     </div>
-                    <button class="btn outline full" id="btnManualPreview" style="font-size:12px">👁 Preview Manual</button>
-                    <button class="btn green full" id="btnManualDl" style="font-size:12px">⬇ Download Manual Clip</button>
+                    <button class="btn green full" id="btnManualDl" style="font-size:12px">⬇ Download Clip Ini</button>
                 </div>
             </div>
         </div>

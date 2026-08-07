@@ -227,30 +227,97 @@
         finally { btn.textContent = '⬇ Download Clip'; btn.disabled = false; }
     }
 
-    // ===== MANUAL CLIP EDITOR =====
-    document.getElementById('btnManualPreview').addEventListener('click', function () {
-        var s = parseFloat(document.getElementById('manualStart').value);
-        var e = parseFloat(document.getElementById('manualEnd').value);
-        if (isNaN(s) || isNaN(e) || s >= e) { toast('Isi start & end dengan benar!'); return; }
-        if (!ytPlayer) return;
-        ytPlayer.seekTo(s, true); ytPlayer.playVideo();
-        toast('▶ Preview manual: ' + fmt(s) + ' → ' + fmt(e));
+    // ===== CAPCUT TIMELINE EDITOR =====
+    var tlState = { start: 0, end: 0, dragging: null };
+    function initTimeline() {
+        tlState.start = 0; tlState.end = duration;
+        updateTLRange();
+    }
+    function updateTLRange() {
+        var track = document.getElementById('tlTrack');
+        var range = document.getElementById('tlRange');
+        var hL = document.getElementById('tlHandleL');
+        var hR = document.getElementById('tlHandleR');
+        if (!track || !duration) return;
+        var w = track.offsetWidth;
+        var lPct = (tlState.start / duration) * 100;
+        var rPct = (tlState.end / duration) * 100;
+        range.style.left = lPct + '%';
+        range.style.width = (rPct - lPct) + '%';
+        hL.style.left = 'calc(' + lPct + '% - 8px)';
+        hR.style.left = 'calc(' + rPct + '% - 8px)';
+        document.getElementById('tlStartLabel').textContent = fmt(tlState.start);
+        document.getElementById('tlEndLabel').textContent = fmt(tlState.end);
+        document.getElementById('tlDurLabel').textContent = 'Durasi: ' + Math.round(tlState.end - tlState.start) + 's';
+    }
+    function tlSetStart(t) { tlState.start = Math.max(0, Math.min(t, tlState.end - 1)); updateTLRange(); }
+    function tlSetEnd(t) { tlState.end = Math.min(duration, Math.max(t, tlState.start + 1)); updateTLRange(); }
+    // Drag handles
+    function handleDrag(e, which) {
+        e.preventDefault(); e.stopPropagation();
+        tlState.dragging = which;
+        var track = document.getElementById('tlTrack');
+        function onMove(ev) {
+            var rect = track.getBoundingClientRect();
+            var x = (ev.touches ? ev.touches[0].clientX : ev.clientX) - rect.left;
+            var pct = Math.max(0, Math.min(1, x / rect.width));
+            var t = pct * duration;
+            if (which === 'left') tlSetStart(t); else tlSetEnd(t);
+        }
+        function onUp() { tlState.dragging = null; document.removeEventListener('mousemove', onMove); document.removeEventListener('mouseup', onUp); document.removeEventListener('touchmove', onMove); document.removeEventListener('touchend', onUp); }
+        document.addEventListener('mousemove', onMove);
+        document.addEventListener('mouseup', onUp);
+        document.addEventListener('touchmove', onMove);
+        document.addEventListener('touchend', onUp);
+    }
+    document.getElementById('tlHandleL').addEventListener('mousedown', function (e) { handleDrag(e, 'left'); });
+    document.getElementById('tlHandleL').addEventListener('touchstart', function (e) { handleDrag(e, 'left'); });
+    document.getElementById('tlHandleR').addEventListener('mousedown', function (e) { handleDrag(e, 'right'); });
+    document.getElementById('tlHandleR').addEventListener('touchstart', function (e) { handleDrag(e, 'right'); });
+    // Click on track to set playhead + drag range
+    document.getElementById('tlTrack').addEventListener('click', function (e) {
+        if (tlState.dragging) return;
+        var rect = this.getBoundingClientRect();
+        var pct = (e.clientX - rect.left) / rect.width;
+        var t = pct * duration;
+        if (ytPlayer) { ytPlayer.seekTo(t, true); }
     });
+    // Update playhead position every frame
+    function updatePlayhead() {
+        if (!ytPlayer || !ytPlayer.getCurrentTime) { requestAnimationFrame(updatePlayhead); return; }
+        var t = ytPlayer.getCurrentTime();
+        var pct = (t / duration) * 100;
+        var ph = document.getElementById('tlPlayhead');
+        if (ph) ph.style.left = pct + '%';
+        requestAnimationFrame(updatePlayhead);
+    }
+    requestAnimationFrame(updatePlayhead);
+    // Set Start / End buttons
+    document.getElementById('btnSetStart').addEventListener('click', function () {
+        if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+        tlSetStart(ytPlayer.getCurrentTime());
+        toast('[ Start: ' + fmt(tlState.start));
+    });
+    document.getElementById('btnSetEnd').addEventListener('click', function () {
+        if (!ytPlayer || !ytPlayer.getCurrentTime) return;
+        tlSetEnd(ytPlayer.getCurrentTime());
+        toast('] End: ' + fmt(tlState.end));
+    });
+    // Reset range
+    document.getElementById('btnResetRange').addEventListener('click', function () { tlState.start = 0; tlState.end = duration; updateTLRange(); toast('Range reset'); });
+    // Download manual clip
     document.getElementById('btnManualDl').addEventListener('click', async function () {
-        var s = parseFloat(document.getElementById('manualStart').value);
-        var e = parseFloat(document.getElementById('manualEnd').value);
-        if (isNaN(s) || isNaN(e) || s >= e) { toast('Isi start & end dengan benar!'); return; }
         if (!vidId) { toast('Analisis video dulu!'); return; }
-        toast('⏳ Download manual clip...');
+        toast('⏳ Download clip (' + Math.round(tlState.end - tlState.start) + 's)...');
         try {
-            var d = await api('/api/download-video-segment', { url: videoUrl, vid_id: vidId, start: s, end: e });
+            var d = await api('/api/download-video-segment', { url: videoUrl, vid_id: vidId, start: tlState.start, end: tlState.end });
             if (d.error) throw new Error(d.error);
             var iframe = document.createElement('iframe');
             iframe.style.display = 'none';
             iframe.src = d.download_url;
             document.body.appendChild(iframe);
             setTimeout(function () { document.body.removeChild(iframe); }, 30000);
-            toast('✅ Manual clip downloaded!');
+            toast('✅ Clip downloaded!');
         } catch (err) { toast('❌ Error: ' + err.message); }
     });
 

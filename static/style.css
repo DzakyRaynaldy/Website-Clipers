@@ -84,8 +84,9 @@ body.light{--bg:#f4f5f7;--card:#ffffff;--elevated:#eef0f4;--border:#dde0e6;--tex
 .tv{background:rgba(239,68,68,.15);color:var(--red)}
 
 .col-center{display:flex;flex-direction:column;background:#111;overflow:hidden}
-.player{flex:1;display:flex;justify-content:center;align-items:center;min-height:0;overflow:hidden;background:#000}
-.player iframe{width:100%;height:100%;border:none}
+.player{flex:1;display:flex;justify-content:center;align-items:center;min-height:300px;height:60vh;overflow:hidden;background:#000;position:relative}
+.player iframe{position:absolute;top:0;left:0;width:100%;height:100%;border:none}
+.player iframe[allow]{position:absolute}
 .controls{display:flex;align-items:center;gap:6px;padding:6px 12px;background:var(--card);border-top:1px solid var(--border)}
 .ctrl{background:none;border:none;color:var(--text);font-size:16px;cursor:pointer;padding:3px 5px;border-radius:4px}
 .ctrl:hover{background:var(--elevated)}
@@ -160,3 +161,16 @@ body.light .riset-header h2{color:#1a1d26}
 ::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px}
 
 @media(max-width:900px){.editor-grid{grid-template-columns:1fr}.col-left,.col-right{display:none}.wf-grid{grid-template-columns:1fr}.home-btns{flex-direction:column;gap:10px}}
+
+/* CapCut Timeline Editor */
+.timeline-editor{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin:8px 0}
+.tl-row{display:flex;align-items:center;gap:8px;margin-bottom:10px}
+.tl-row .tl-label{font-size:12px;font-weight:600;color:var(--text);flex:1}
+.tl-track{position:relative;height:40px;background:var(--bg);border-radius:8px;cursor:pointer;overflow:hidden;user-select:none}
+.tl-range{position:absolute;top:0;height:100%;background:rgba(124,58,237,0.25);border:2px solid var(--accent);border-radius:6px;pointer-events:none;z-index:2}
+.tl-handle{position:absolute;top:50%;transform:translateY(-50%);width:16px;height:36px;background:var(--accent);border-radius:4px;cursor:ew-resize;z-index:3;display:flex;align-items:center;justify-content:center;font-size:8px;color:#fff}
+.tl-handle-l{left:-2px;border-radius:4px 0 0 4px}
+.tl-handle-r{right:-2px;border-radius:0 4px 4px 0}
+.tl-playhead{position:absolute;top:-2px;width:2px;height:calc(100% + 4px);background:#ef4444;z-index:4;pointer-events:none;transition:left 0.05s linear}
+.tl-playhead::before{content:"▼";position:absolute;top:-10px;left:-5px;font-size:10px;color:#ef4444}
+.tl-times{display:flex;justify-content:space-between;margin-top:6px;font-size:11px;color:var(--sub)}
