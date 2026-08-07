@@ -7,7 +7,7 @@ from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 
-app = Flask(__name__, static_folder='static')
+app = Flask(__name__, static_folder='build-uc-ui/dist', static_url_path='/')
 CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPTIONS"]}})
 
 DOWNLOADS = Path(__file__).parent / 'downloads'
@@ -432,11 +432,16 @@ def serve_file(filename):
 
 @app.route('/')
 def index():
-    return send_from_directory('static', 'index.html')
+    return send_from_directory('build-uc-ui/dist', 'index.html')
 
 @app.route('/<path:path>')
 def static_files(path):
-    return send_from_directory('static', path)
+    # If file exists in dist, serve it
+    try:
+        return send_from_directory('build-uc-ui/dist', path)
+    except:
+        # Otherwise serve index.html for React routing
+        return send_from_directory('build-uc-ui/dist', 'index.html')
 
 if __name__ == '__main__':
     print("UniversalClip running at http://localhost:5000")
