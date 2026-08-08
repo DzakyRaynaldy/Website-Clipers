@@ -698,6 +698,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [dlJob, setDlJob] = useState<{ percent: number; stage: string; status: string } | null>(null)
   const [commentHl, setCommentHl] = useState<{ start: number; end: number } | null>(null)
   const [commentDlTime, setCommentDlTime] = useState<number | null>(null)
+  const [commentDlSec, setCommentDlSec] = useState<number | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -1009,10 +1010,10 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     downloadRange(activeClip.start, activeClip.end)
   }
 
-  // ── Download dari komentar: pilih N detik sebelum adegan (5-30s) ──
+  // ── Download dari komentar: pilih N detik sebelum adegan, klik Download baru jalan ──
   const handleCommentDownload = (t: number, n: number) => {
-    setCommentDlTime(null)
-    downloadRange(Math.max(0, t - n), t)
+    setCommentDlTime(t)
+    setCommentDlSec(n)
   }
 
   const badgeColors: Record<string, string> = {
@@ -1175,21 +1176,38 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                             key={n}
                             className="btn-secondary"
                             onClick={() => handleCommentDownload(commentDlTime, n)}
-                            style={{ padding: '6px 10px', fontSize: 12 }}
+                            style={{
+                              padding: '6px 10px',
+                              fontSize: 12,
+                              background: commentDlSec === n ? 'rgba(168,85,247,0.35)' : undefined,
+                              borderColor: commentDlSec === n ? 'rgba(168,85,247,0.6)' : undefined,
+                            }}
                           >
                             {n}s sebelum
                           </button>
                         ))}
                       </div>
-                      <button
-                        onClick={() => setCommentDlTime(null)}
-                        style={{
-                          background: 'transparent', border: 'none', color: 'var(--muted-foreground)',
-                          fontSize: 11, cursor: 'pointer', marginTop: 8, padding: 0,
-                        }}
-                      >
-                        Batal
-                      </button>
+                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
+                        <button
+                          className="btn-primary glow-purple-sm"
+                          disabled={commentDlSec == null || downloading}
+                          onClick={() => {
+                            downloadRange(Math.max(0, commentDlTime - commentDlSec!), commentDlTime)
+                          }}
+                          style={{ padding: '8px 16px', fontSize: 12 }}
+                        >
+                          {downloading ? 'Memotong...' : '⬇ Download'}
+                        </button>
+                        <button
+                          onClick={() => { setCommentDlTime(null); setCommentDlSec(null) }}
+                          style={{
+                            background: 'transparent', border: 'none', color: 'var(--muted-foreground)',
+                            fontSize: 11, cursor: 'pointer', padding: 0,
+                          }}
+                        >
+                          Batal
+                        </button>
+                      </div>
                     </div>
                   )}
                 {viewerComments.map((c, i) => (
