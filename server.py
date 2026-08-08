@@ -2,7 +2,7 @@
 UniversalClip Backend
 All free: yt-dlp + ffmpeg + YouTube IFrame API
 """
-import os, json, subprocess, re, math, struct, threading
+import os, json, subprocess, re, math, struct, threading, time
 from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -289,7 +289,7 @@ def download_video_segment():
             return jsonify({'job_id': job_id, 'status': 'done', 'percent': 100, 'filename': out_name, 'download_url': f'/api/download-file/{out_name}'})
         if job_id in _dl_jobs and _dl_jobs[job_id]['status'] == 'processing':
             return jsonify({'job_id': job_id, 'status': 'processing'})
-        _dl_jobs[job_id] = {'percent': 0, 'stage': 'Memulai...', 'status': 'processing'}
+        _dl_jobs[job_id] = {'percent': 0, 'stage': 'Memulai...', 'status': 'processing', 'started': time.time()}
 
     def hook(d):
         with _dl_lock:
@@ -298,12 +298,16 @@ def download_video_segment():
                 return
             if d['status'] == 'downloading':
                 total = d.get('total_bytes') or d.get('total_bytes_estimate')
+                real = 0
                 if total:
-                    j['percent'] = min(90, round(d['downloaded_bytes'] / total * 100))
+                    real = round(d['downloaded_bytes'] / total * 100)
                 else:
                     fi, fc = d.get('fragment_index'), d.get('fragment_count')
                     if fc:
-                        j['percent'] = min(90, round(fi / fc * 100))
+                        real = round(fi / fc * 100)
+                # anti-beku: kalau hook jarang fire (segmen pendek), bar tetap gerak minimal 5%/dtk
+                elapsed = time.time() - j.get('started', time.time())
+                j['percent'] = min(90, max(real, int(elapsed * 5)))
                 j['stage'] = f'Mengunduh video... {j["percent"]}%'
             elif d['status'] == 'finished':
                 j['stage'] = 'Menggabungkan audio & video...'
