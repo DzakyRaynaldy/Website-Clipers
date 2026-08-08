@@ -191,6 +191,11 @@ const API = {
     if (!res.ok) throw new Error('Gagal download segment')
     return res.json()
   },
+  async downloadProgress(jobId: string): Promise<any> {
+    const res = await fetch(`/api/download-progress/${jobId}`)
+    if (!res.ok) throw new Error('Gagal cek progress')
+    return res.json()
+  },
 }
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
@@ -397,13 +402,14 @@ interface TimelineProps {
   clip: Clip
   currentTime: number          // detik absolut di video
   playing: boolean
+  highlight?: { start: number; end: number } | null  // detik absolut (range komentar)
   onTogglePlay: () => void
   onSeek: (t: number) => void  // detik absolut
   onReset: () => void
   onSplit: () => void
 }
 
-function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onReset, onSplit }: TimelineProps) {
+function TimelineEditor({ clip, currentTime, playing, highlight, onTogglePlay, onSeek, onReset, onSplit }: TimelineProps) {
   const clipDur = Math.max(1, clip.end - clip.start)
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -478,6 +484,18 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
   const startSec = clip.start + (trimStart / 100) * clipDur
   const endSec = clip.start + (trimEnd / 100) * clipDur
   const durSec = Math.round(endSec - startSec)
+  const playheadRel = Math.max(0, currentTime - clip.start)  // detik relatif dari 0
+
+  // highlight komentar (±30s) — clamp ke range clip
+  let hlStartPct = 0, hlWidthPct = 0
+  if (highlight) {
+    const hs = Math.max(highlight.start, clip.start)
+    const he = Math.min(highlight.end, clip.end)
+    if (he > hs) {
+      hlStartPct = ((hs - clip.start) / clipDur) * 100
+      hlWidthPct = ((he - hs) / clipDur) * 100
+    }
+  }
 
   return (
     <div style={{ background: '#13131d', border: '1px solid #252538', borderRadius: 12, padding: 12 }}>
@@ -532,6 +550,20 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
             width: 1, background: 'rgba(255,255,255,0.04)',
           }} />
         ))}
+
+        {hlWidthPct > 0 && (
+          <div style={{
+            position: 'absolute',
+            left: `${hlStartPct}%`,
+            width: `${hlWidthPct}%`,
+            top: 0, bottom: 0,
+            background: 'rgba(234,179,8,0.25)',
+            border: '1px solid rgba(234,179,8,0.5)',
+            borderRadius: 4,
+            pointerEvents: 'none',
+            zIndex: 1,
+          }} />
+        )}
 
         <div style={{
           position: 'absolute',
@@ -628,9 +660,10 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
       </div>
 
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
-        <span style={{ fontSize: 11, color: '#8888a0' }}>{formatTime(Math.round(startSec))}</span>
+        <span style={{ fontSize: 11, color: '#8888a0' }}>{formatTime(Math.round(startSec - clip.start))}</span>
+        <span style={{ fontSize: 11, color: '#ef4444', fontWeight: 700 }}>▶ {formatTime(Math.round(playheadRel))} / {formatTime(Math.round(clipDur))}</span>
         <span style={{ fontSize: 11, color: '#8888a0' }}>Durasi: {durSec}s</span>
-        <span style={{ fontSize: 11, color: '#8888a0' }}>{formatTime(Math.round(endSec))}</span>
+        <span style={{ fontSize: 11, color: '#8888a0' }}>{formatTime(Math.round(endSec - clip.start))}</span>
       </div>
     </div>
   )
@@ -656,6 +689,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [viewerComments, setViewerComments] = useState<ViewerComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const [dlJob, setDlJob] = useState<{ percent: number; stage: string; status: string } | null>(null)
+  const [commentHl, setCommentHl] = useState<{ start: number; end: number } | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -707,6 +742,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     if (!vidId || !activeClip) return
     const t = activeClip.start
     setCurrentTime(t)
+    setCommentHl(null)
     if (playerReadyRef.current && playerRef.current?.seekTo) {
       playerRef.current.seekTo(t, true)
     } else {
@@ -714,9 +750,9 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     }
   }, [activeClip?.id, vidId])
 
-  // ── Polling posisi player ──
+  // ── Polling posisi player (selalu jalan, timeline selalu sinkron) ──
   useEffect(() => {
-    if (!playing) return
+    if (!vidId || phase !== 'editor') return
     const id = setInterval(() => {
       const p = playerRef.current
       if (p && typeof p.getCurrentTime === 'function') {
@@ -724,7 +760,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
       }
     }, 250)
     return () => clearInterval(id)
-  }, [playing])
+  }, [vidId, phase])
 
   // ── Ambil komentar viewer (timestamp dari penonton) ──
   useEffect(() => {
@@ -881,23 +917,52 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     addToast('Clip di-split jadi 2!', 'success')
   }
 
-  // ── Download clip aktif (potong segmen video via backend) ──
+  // ── Download clip aktif (potong segmen video via backend, polling progress) ──
   const handleDownloadClip = async () => {
     if (!activeClip || !vidId) return
     setDownloading(true)
-    addToast('Memotong segmen video...', 'info')
-    try {
-      const res = await API.downloadSegment(youtubeUrl, vidId, activeClip.start, activeClip.end)
+    setDlJob({ percent: 0, stage: 'Memulai...', status: 'processing' })
+
+    const triggerDownload = (url: string, filename?: string) => {
       const a = document.createElement('a')
-      a.href = res.download_url
-      a.download = res.filename || ''
+      a.href = url
+      a.download = filename || ''
       document.body.appendChild(a)
       a.click()
       a.remove()
-      addToast(`Download ${res.filename || 'clip'} dimulai!`, 'success')
+    }
+
+    try {
+      const res = await API.downloadSegment(youtubeUrl, vidId, activeClip.start, activeClip.end)
+      if (res.status === 'done' && res.download_url) {
+        setDlJob({ percent: 100, stage: 'Selesai', status: 'done' })
+        triggerDownload(res.download_url, res.filename)
+        addToast(`Download ${res.filename || 'clip'} dimulai!`, 'success')
+        setDownloading(false)
+        return
+      }
+      const poll = setInterval(async () => {
+        try {
+          const p = await API.downloadProgress(res.job_id)
+          setDlJob(p)
+          if (p.status === 'done') {
+            clearInterval(poll)
+            triggerDownload(p.download_url, p.filename)
+            addToast(`Download ${p.filename || 'clip'} dimulai!`, 'success')
+            setDownloading(false)
+          } else if (p.status === 'error') {
+            clearInterval(poll)
+            addToast(`Download gagal: ${(p.error || p.stage || '').slice(0, 60)}`, 'error')
+            setDownloading(false)
+          }
+        } catch (e) {
+          clearInterval(poll)
+          addToast('Gagal cek progress download', 'error')
+          setDownloading(false)
+        }
+      }, 500)
     } catch (e) {
       addToast(`Download gagal: ${String(e).slice(0, 60)}`, 'error')
-    } finally {
       setDownloading(false)
     }
   }
@@ -1044,10 +1109,17 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                 viewerComments.map((c, i) => (
                   <div
                     key={i}
-                    onClick={() => { seekTo(c.time); setCurrentTime(c.time) }}
+                    onClick={() => {
+                      const s = Math.max(0, c.time - 30)
+                      seekTo(s)
+                      setCurrentTime(s)
+                      setCommentHl({ start: s, end: c.time + 30 })
+                      const p = playerRef.current
+                      if (p && playerReadyRef.current) p.playVideo()
+                    }}
                     style={{
-                      background: 'var(--muted)',
-                      border: '1px solid var(--border)',
+                      background: commentHl && c.time >= commentHl.start && c.time <= commentHl.end ? 'rgba(234,179,8,0.1)' : 'var(--muted)',
+                      border: `1px solid ${commentHl && c.time >= commentHl.start && c.time <= commentHl.end ? 'rgba(234,179,8,0.4)' : 'var(--border)'}`,
                       borderRadius: 10,
                       padding: '10px 12px',
                       cursor: 'pointer',
@@ -1128,6 +1200,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             clip={activeClip}
             currentTime={currentTime}
             playing={playing}
+            highlight={commentHl}
             onTogglePlay={togglePlay}
             onSeek={seekTo}
             onReset={resetPlayback}
@@ -1213,7 +1286,24 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                 onClick={handleDownloadClip}
                 disabled={downloading}
               >
-                {downloading ? (
+                {downloading && dlJob ? (
+                  <span style={{ display: 'block' }}>
+                    <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                      <span style={{ fontSize: 11 }}>{dlJob.stage || 'Memotong...'}</span>
+                      <span style={{ fontSize: 11, fontWeight: 700 }}>{dlJob.percent}%</span>
+                    </span>
+                    <span className="progress-bar" style={{ height: 6, display: 'block' }}>
+                      <span
+                        className="progress-fill"
+                        style={{
+                          width: `${Math.min(100, Math.max(0, dlJob.percent || 0))}%`,
+                          transition: 'width 0.3s ease',
+                          display: 'block',
+                        }}
+                      />
+                    </span>
+                  </span>
+                ) : downloading ? (
                   <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
                     <div className="spinner" style={{ width: 14, height: 14 }} />
                     Memotong...

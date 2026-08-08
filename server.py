@@ -2,7 +2,7 @@
 UniversalClip Backend
 All free: yt-dlp + ffmpeg + YouTube IFrame API
 """
-import os, json, subprocess, re, math, struct
+import os, json, subprocess, re, math, struct, threading
 from pathlib import Path
 from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
@@ -271,34 +271,74 @@ def analyze_audio():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-# ========== Download Video Segment ==========
+# ========== Download Video Segment (background thread + progress) ==========
+_dl_jobs = {}
+_dl_lock = threading.Lock()
+
 @app.route('/api/download-video-segment', methods=['POST'])
 def download_video_segment():
     data = request.json
     url, vid_id, start, end = data.get('url', ''), data.get('vid_id', ''), data.get('start', 0), data.get('end', 0)
     if not url:
         return jsonify({'error': 'URL kosong'}), 400
-    try:
-        import yt_dlp
-        out_name = f'clip_{vid_id}_{int(start)}_{int(end)}.mp4'
-        out_path = DOWNLOADS / out_name
+    job_id = f'{vid_id}_{int(start)}_{int(end)}'
+    out_name = f'clip_{job_id}.mp4'
+    out_path = DOWNLOADS / out_name
+    with _dl_lock:
         if out_path.exists():
-            return jsonify({'filename': out_name, 'download_url': f'/api/download-file/{out_name}'})
-        outtmpl = str(DOWNLOADS / f'clip_{vid_id}_{int(start)}_{int(end)}.%(ext)s')
-        ydl_opts = {'format': 'bestvideo[height<=1080]+bestaudio/best', 'outtmpl': outtmpl, 'quiet': True, 'no_warnings': True, 'merge_output_format': 'mp4', 'noplaylist': True, 'download_ranges': yt_dlp.utils.download_range_func(None, [[start, end]]), 'force_keyframes_at_cuts': True}
-        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            ydl.download([url])
-        for f in DOWNLOADS.glob(f'clip_{vid_id}_{int(start)}_{int(end)}.*'):
-            if f.suffix in ['.mp4', '.mkv', '.webm']:
-                if f.suffix != '.mp4':
+            return jsonify({'job_id': job_id, 'status': 'done', 'percent': 100, 'filename': out_name, 'download_url': f'/api/download-file/{out_name}'})
+        if job_id in _dl_jobs and _dl_jobs[job_id]['status'] == 'processing':
+            return jsonify({'job_id': job_id, 'status': 'processing'})
+        _dl_jobs[job_id] = {'percent': 0, 'stage': 'Memulai...', 'status': 'processing'}
+
+    def hook(d):
+        with _dl_lock:
+            j = _dl_jobs.get(job_id)
+            if not j or j['status'] != 'processing':
+                return
+            if d['status'] == 'downloading':
+                total = d.get('total_bytes') or d.get('total_bytes_estimate')
+                if total:
+                    j['percent'] = min(90, round(d['downloaded_bytes'] / total * 100))
+                else:
+                    fi, fc = d.get('fragment_index'), d.get('fragment_count')
+                    if fc:
+                        j['percent'] = min(90, round(fi / fc * 100))
+                j['stage'] = f'Mengunduh video... {j["percent"]}%'
+            elif d['status'] == 'finished':
+                j['stage'] = 'Menggabungkan audio & video...'
+                j['percent'] = 92
+
+    def work():
+        try:
+            import yt_dlp
+            outtmpl = str(DOWNLOADS / f'clip_{job_id}.%(ext)s')
+            ydl_opts = {'format': 'bestvideo[height<=1080]+bestaudio/best', 'outtmpl': outtmpl, 'quiet': True, 'no_warnings': True, 'merge_output_format': 'mp4', 'noplaylist': True, 'download_ranges': yt_dlp.utils.download_range_func(None, [[start, end]]), 'force_keyframes_at_cuts': True, 'progress_hooks': [hook]}
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+            with _dl_lock:
+                _dl_jobs[job_id]['stage'] = 'Menggabungkan audio & video...'
+                _dl_jobs[job_id]['percent'] = 95
+            # paksa merge: ffmpeg copy kalau belum .mp4
+            for f in DOWNLOADS.glob(f'clip_{job_id}.*'):
+                if f.suffix in ['.mp4', '.mkv', '.webm'] and f.name != out_name:
                     subprocess.run(['ffmpeg', '-y', '-i', str(f), '-c', 'copy', str(out_path)], capture_output=True, timeout=120)
                     f.unlink(missing_ok=True)
-                else:
-                    out_path = f
-                return jsonify({'filename': out_path.name, 'download_url': f'/api/download-file/{out_path.name}'})
-        return jsonify({'error': 'Gagal export'}), 500
-    except Exception as e:
-        return jsonify({'error': str(e)}), 500
+            if not out_path.exists() and (DOWNLOADS / out_name).exists():
+                pass
+            with _dl_lock:
+                _dl_jobs[job_id] = {'percent': 100, 'stage': 'Selesai', 'status': 'done', 'filename': out_name, 'download_url': f'/api/download-file/{out_name}'}
+        except Exception as e:
+            with _dl_lock:
+                _dl_jobs[job_id] = {'percent': 0, 'stage': str(e)[:80], 'status': 'error', 'error': str(e)}
+
+    threading.Thread(target=work, daemon=True).start()
+    return jsonify({'job_id': job_id, 'status': 'processing'})
+
+@app.route('/api/download-progress/<job_id>')
+def download_progress(job_id):
+    with _dl_lock:
+        return jsonify(_dl_jobs.get(job_id, {'status': 'unknown'}))
 
 # ========== Trending by Category ==========
 @app.route('/api/trending', methods=['POST'])
