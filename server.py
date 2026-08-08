@@ -342,7 +342,16 @@ def download_video_segment():
 @app.route('/api/download-progress/<job_id>')
 def download_progress(job_id):
     with _dl_lock:
-        return jsonify(_dl_jobs.get(job_id, {'status': 'unknown'}))
+        j = _dl_jobs.get(job_id)
+        if not j:
+            return jsonify({'status': 'unknown'})
+        if j.get('status') == 'processing':
+            # anti-beku: bar tetap gerak 5%/dtk walau hook yt-dlp jarang fire (segmen pendek/extract lama)
+            el = time.time() - j.get('started', time.time())
+            j['percent'] = min(90, max(j.get('percent', 0), int(el * 5)))
+            if j['percent'] > 0:
+                j['stage'] = f'Mengunduh video... {j["percent"]}%'
+        return jsonify(j)
 
 # ========== Trending by Category ==========
 @app.route('/api/trending', methods=['POST'])
