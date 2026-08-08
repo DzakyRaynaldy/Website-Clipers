@@ -730,13 +730,15 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
         const isKaget = !!m.tag_kaget
         const isLucu = (m.lucu_score || 0) >= 5
         const dur = Math.round((m.end || 0) - (m.start || 0))
+        const st = Math.round(m.start || 0)
+        const en = Math.round(m.end || 0)
         return {
           id: i,
-          keyword: 'Moment terdeteksi',
+          keyword: `Momen ${isKaget ? 'kaget' : isLucu ? 'lucu' : 'menarik'} di ${formatTime(st)}`,
           badge: isKaget ? '😱 KAGET' : isLucu ? '😂 LUCU' : '🔊 AUDIO',
           badgeType: isKaget ? 'kaget' : isLucu ? 'lucu' : 'audio',
-          start: Math.round(m.start),
-          end: Math.round(m.end),
+          start: st,
+          end: en,
           intensityScore: Math.round((m.intensity || 0) * 100),
           kagetScore: Math.round((m.kaget_score || 0) * 10),
           lucuScore: Math.round((m.lucu_score || 0) * 10),

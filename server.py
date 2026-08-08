@@ -49,6 +49,37 @@ def download_audio():
         return jsonify({'error': str(e)}), 500
 
 # ========== Subtitles ==========
+def _whisper_transcript(vid_id):
+    """Transkripsi lokal via faster-whisper (fallback saat YouTube caption kosong)."""
+    cache = DOWNLOADS / f'{vid_id}_whisper.json'
+    if cache.exists():
+        return json.loads(cache.read_text(encoding='utf-8'))
+    audio = None
+    for ext in ['webm', 'm4a', 'opus', 'mp3']:
+        p = DOWNLOADS / f'{vid_id}_audio.{ext}'
+        if p.exists():
+            audio = p
+            break
+    if audio is None:
+        return []
+    try:
+        from faster_whisper import WhisperModel
+        model = WhisperModel('base', device='cpu', compute_type='int8')
+        segments, _ = model.transcribe(str(audio), language='id', vad_filter=True, beam_size=1)
+        out = [{'start': round(s.start, 2), 'text': s.text.strip()} for s in segments if s.text.strip()]
+        cache.write_text(json.dumps(out, ensure_ascii=False), encoding='utf-8')
+        return out
+    except Exception:
+        return []
+
+def _keyword_from(subs, cs, ce, max_words=6):
+    words = ' '.join(s['text'] for s in subs if cs - 2 <= s['start'] <= ce + 2).split()
+    unique = []
+    for w in words:
+        if not unique or unique[-1].lower() != w.lower():
+            unique.append(w)
+    return ' '.join(unique[:max_words])
+
 @app.route('/api/subtitles', methods=['POST'])
 def get_subtitles():
     data = request.json
@@ -87,15 +118,17 @@ def get_subtitles():
                 json.dump([], fh)
     with open(sub_file, 'r', encoding='utf-8') as fh:
         sub_data = json.load(fh)
+    # Fallback: transkripsi lokal kalau YouTube caption gak nyambung di range clip
+    whisper = None
     for clip in clips:
         cs, ce = clip.get('start', 0), clip.get('end', 0)
-        words = ' '.join(s['text'] for s in sub_data if cs - 2 <= s['start'] <= ce + 2).split()
-        unique = []
-        for w in words:
-            if not unique or unique[-1].lower() != w.lower():
-                unique.append(w)
-        clip['keyword'] = ' '.join(unique[:6])
-        clip['transcript'] = ' '.join(unique[:20])
+        kw = _keyword_from(sub_data, cs, ce)
+        if not kw and whisper is None:
+            whisper = _whisper_transcript(vid_id)
+        if not kw and whisper:
+            kw = _keyword_from(whisper, cs, ce)
+        clip['keyword'] = kw
+        clip['transcript'] = _keyword_from(whisper or sub_data, cs, ce, 20)
     return jsonify({'clips': clips})
 
 # ========== Comment Timestamps ==========
