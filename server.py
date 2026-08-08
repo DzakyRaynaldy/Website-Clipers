@@ -13,14 +13,14 @@ CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPT
 DOWNLOADS = Path(__file__).parent / 'downloads'
 DOWNLOADS.mkdir(exist_ok=True)
 
-# ========== Categories Config ==========
+# ========== Categories Config (Naratif AI Focused) ==========
 CATEGORIES = {
-    'gaming': {'label': 'Gaming', 'icon': '🎮', 'queries': ['game viral', 'gameplay lucu', 'esports highlight', 'game seru']},
-    'berita': {'label': 'Berita', 'icon': '📰', 'queries': ['berita viral', 'kabar terkini', 'berita terbaru hari ini', 'trending berita']},
-    'anime': {'label': 'Anime', 'icon': '🎌', 'queries': ['anime terbaik', 'anime viral', 'review anime', 'rekomendasi anime 2026']},
-    'cerita': {'label': 'Cerita', 'icon': '📖', 'queries': ['cerita menarik', 'kisah nyata', 'cerita horror', 'story time viral']},
-    'sejarah': {'label': 'Sejarah', 'icon': '🏛️', 'queries': ['sejarah indonesia', 'fakta sejarah', 'sejarah dunia', 'peristiwa bersejarah']},
-    'lucu': {'label': 'Video Lucu', 'icon': '😂', 'queries': ['video lucu viral', 'moments lucu', 'komedi Indonesia', 'video lucu banget']},
+    'fakta_game': {'label': 'Fakta Unik Game', 'icon': '🎮', 'queries': ['fakta rahasia video game', 'easter eggs game', 'fakta unik karakter game']},
+    'lore_karakter': {'label': 'Lore Karakter', 'icon': '👤', 'queries': ['lore karakter anime', 'masa lalu karakter game', 'sejarah karakter ikonik']},
+    'misteri': {'label': 'Misteri & Teori', 'icon': '🕵️', 'queries': ['teori konspirasi game', 'misteri yang belum terpecahkan', 'creepypasta viral']},
+    'horror': {'label': 'Kisah Horror', 'icon': '👻', 'queries': ['kisah horror nyata', 'cerita hantu viral', 'tempat paling angker']},
+    'sejarah': {'label': 'Sejarah Unik', 'icon': '📜', 'queries': ['fakta sejarah yang jarang diketahui', 'peristiwa aneh di masa lalu', 'tokoh sejarah misterius']},
+    'lucu': {'label': 'Fakta Lucu', 'icon': '😂', 'queries': ['fakta random lucu', 'kejadian unik menghibur', 'fakta hewan aneh']},
 }
 
 # ========== Download Audio ==========
@@ -173,11 +173,13 @@ def analyze_audio():
         peak_start = peak_max = 0
         for i, val in enumerate(waveform):
             t = (i / len(waveform)) * duration
-            if val > mean + std * 0.8 and not in_peak:
+            # Dynamic threshold: lower if video is quiet
+            threshold = max(0.2, mean + std * 0.6)
+            if val > threshold and not in_peak:
                 in_peak = True; peak_start = t; peak_max = val
             elif in_peak:
                 peak_max = max(peak_max, val)
-                if val <= mean + std * 0.8 or i == len(waveform) - 1:
+                if val <= threshold or i == len(waveform) - 1:
                     in_peak = False
                     if t - peak_start >= 1.5:
                         s, e = max(0, peak_start - 1), min(duration, t + 1)
@@ -305,7 +307,7 @@ def trending():
 
 # ========== Saran Konten (LLM-powered) ==========
 LLM_BASE = 'http://localhost:20128/v1'
-LLM_KEY = 'sk-014d30f700dfd9af-bjeu7t-41005c9f'
+LLM_KEY = 'GANTI_DENGAN_ENV_VARIABLE'
 LLM_MODEL = 'Combo_Mantap'
 
 @app.route('/api/saran-konten', methods=['POST'])

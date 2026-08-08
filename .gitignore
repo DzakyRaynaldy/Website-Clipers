@@ -9,3 +9,4 @@ downloads/
 *.opus
 .vscode/
 *.json3
+.env
