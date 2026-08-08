@@ -604,9 +604,9 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
   const activeClip = clips.find(c => c.id === selectedId) || null
 
-  // ── YouTube IFrame API: buat player sekali per vidId ──
+  // ── YouTube IFrame API: buat player sekali per vidId, setelah editor tampil ──
   useEffect(() => {
-    if (!vidId) return
+    if (!vidId || phase !== 'editor') return
     let cancelled = false
 
     const initPlayer = () => {
@@ -639,7 +639,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     }
 
     return () => { cancelled = true }
-  }, [vidId])
+  }, [vidId, phase])
 
   // ── Ganti clip → seek tanpa reload iframe ──
   useEffect(() => {
