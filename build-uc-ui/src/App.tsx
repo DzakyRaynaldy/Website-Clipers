@@ -398,6 +398,49 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
 
 // ─── Timeline Editor (CapCut style, sync dengan YouTube player) ───────────────
 
+// ── Panel pilihan N detik sebelum (dipakai komentar & clip) ──
+function SecPickPanel({ title, start, end, sec, onPick }: {
+  title: string
+  start: number  // awal range setelah N dipilih
+  end: number    // akhir range
+  sec: number | null
+  onPick: (n: number) => void
+}) {
+  return (
+    <div style={{
+      background: 'rgba(168,85,247,0.08)',
+      border: '1px solid rgba(168,85,247,0.3)',
+      borderRadius: 10,
+      padding: 10,
+      marginBottom: 4,
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 600, color: '#e9d5ff' }}>{title}</div>
+      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: '4px 0 8px' }}>
+        {sec != null
+          ? `Range: ${formatTime(start)} – ${formatTime(end)} · klik ⬇ Download Clip di bawah`
+          : 'Ambil berapa detik sebelum momen?'}
+      </div>
+      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+        {[5, 10, 15, 20, 25, 30].map(n => (
+          <button
+            key={n}
+            className="btn-secondary"
+            onClick={() => onPick(n)}
+            style={{
+              padding: '6px 10px',
+              fontSize: 12,
+              background: sec === n ? 'rgba(168,85,247,0.35)' : undefined,
+              borderColor: sec === n ? 'rgba(168,85,247,0.6)' : undefined,
+            }}
+          >
+            {n}s sebelum
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 interface TimelineProps {
   clip: Clip
   currentTime: number          // detik absolut di video
@@ -699,6 +742,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [commentHl, setCommentHl] = useState<{ start: number; end: number } | null>(null)
   const [commentDlTime, setCommentDlTime] = useState<number | null>(null)
   const [commentDlSec, setCommentDlSec] = useState<number | null>(null)
+  const [clipDlSec, setClipDlSec] = useState<number | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -758,6 +802,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     const t = activeClip.start
     setCurrentTime(t)
     setCommentHl(null)
+    setClipDlSec(null)
     if (playerReadyRef.current && playerRef.current?.seekTo) {
       playerRef.current.seekTo(t, true)
     } else {
@@ -840,7 +885,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           kagetScore: Math.round((m.kaget_score || 0) * 10),
           lucuScore: Math.round((m.lucu_score || 0) * 10),
           label: labelFor(dur),
-          komentar: 'Moment terdeteksi dari analisis audio',
           transkrip: 'Video telah dianalisis oleh UniversalClip',
         }
       })
@@ -1007,9 +1051,11 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
   const handleDownloadClip = () => {
     if (!activeClip) return
-    // kalau lagi pilih N detik dari komentar → download range komentar, bukan clip aktif
+    // prioritas: pilihan dari komentar > pilihan dari clip > clip aktif polos
     if (commentDlSec != null && commentDlTime != null) {
       downloadRange(Math.max(0, commentDlTime - commentDlSec), commentDlTime)
+    } else if (clipDlSec != null) {
+      downloadRange(Math.max(0, activeClip.start - clipDlSec), activeClip.end)
     } else {
       downloadRange(activeClip.start, activeClip.end)
     }
@@ -1162,42 +1208,13 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               ) : (
                 <>
                   {commentDlTime != null && (
-                    <div style={{
-                      background: 'rgba(168,85,247,0.08)',
-                      border: '1px solid rgba(168,85,247,0.3)',
-                      borderRadius: 10,
-                      padding: 10,
-                      marginBottom: 4,
-                    }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: '#e9d5ff' }}>
-                        ⬇ Download clip dari komentar {formatTime(commentDlTime)}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: '4px 0 8px' }}>
-                        Ambil berapa detik sebelum adegan?
-                      </div>
-                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-                        {[5, 10, 15, 20, 25, 30].map(n => (
-                          <button
-                            key={n}
-                            className="btn-secondary"
-                            onClick={() => handleCommentDownload(commentDlTime, n)}
-                            style={{
-                              padding: '6px 10px',
-                              fontSize: 12,
-                              background: commentDlSec === n ? 'rgba(168,85,247,0.35)' : undefined,
-                              borderColor: commentDlSec === n ? 'rgba(168,85,247,0.6)' : undefined,
-                            }}
-                          >
-                            {n}s sebelum
-                          </button>
-                        ))}
-                      </div>
-                      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 8 }}>
-                        {commentDlSec != null
-                          ? `Range: ${formatTime(Math.max(0, commentDlTime - commentDlSec))} – ${formatTime(commentDlTime)} · klik ⬇ Download Clip di bawah`
-                          : 'Pilih durasi dulu, lalu klik ⬇ Download Clip di bawah'}
-                      </div>
-                    </div>
+                    <SecPickPanel
+                      title={`⬇ Download clip dari komentar ${formatTime(commentDlTime)}`}
+                      start={Math.max(0, commentDlTime - (commentDlSec ?? 0))}
+                      end={commentDlTime}
+                      sec={commentDlSec}
+                      onPick={n => handleCommentDownload(commentDlTime, n)}
+                    />
                   )}
                 {viewerComments.map((c, i) => (
                   <div
@@ -1234,7 +1251,17 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                 </>
               )
             ) : (
-              filteredClips.map((clip, i) => (
+              <>
+                {activeClip && (
+                  <SecPickPanel
+                    title="⬇ Download clip dengan konteks sebelum momen"
+                    start={Math.max(0, activeClip.start - (clipDlSec ?? 0))}
+                    end={activeClip.end}
+                    sec={clipDlSec}
+                    onPick={n => setClipDlSec(n)}
+                  />
+                )}
+                {filteredClips.map((clip, i) => (
               <div
                 key={clip.id}
                 onClick={() => setSelectedId(clip.id)}
@@ -1263,7 +1290,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                   {formatTime(clip.start)} – {formatTime(clip.end)} · {duration(clip)}s
                 </div>
               </div>
-              ))
+              ))}
+              </>
             )}
             {filter !== 'komentar' && filteredClips.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13, padding: '24px 0' }}>
@@ -1353,7 +1381,15 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               <div>
                 <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Komentar Viral</div>
                 <div style={{ fontSize: 11, color: 'var(--foreground)', fontStyle: 'italic', lineHeight: 1.5, background: 'var(--muted)', borderRadius: 8, padding: '8px 10px' }}>
-                  {activeClip.komentar}
+                  {(() => {
+                    // komentar viewer asli yang timestamp-nya ada di range clip ini
+                    const inRange = viewerComments.filter(c => c.time >= activeClip.start && c.time <= activeClip.end)
+                    if (inRange.length === 0) {
+                      return 'Belum ada komentar viewer di range clip ini'
+                    }
+                    const top = [...inRange].sort((a, b) => b.likes - a.likes)[0]
+                    return `${formatTime(top.time)} · @${top.author}: "${top.text}" 👍${top.likes}`
+                  })()}
                 </div>
               </div>
 
