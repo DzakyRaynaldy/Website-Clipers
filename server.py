@@ -538,6 +538,13 @@ def static_files(path):
         # Otherwise serve index.html for React routing
         return send_from_directory('build-uc-ui/dist', 'index.html')
 
+@app.after_request
+def no_cache_html(resp):
+    # index.html jangan di-cache browser → bundle baru selalu keambil
+    if resp.content_type and 'text/html' in resp.content_type:
+        resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    return resp
+
 if __name__ == '__main__':
     print("UniversalClip running at http://localhost:5000")
     app.run(debug=False, port=5000)

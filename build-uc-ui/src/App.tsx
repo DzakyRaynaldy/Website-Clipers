@@ -404,12 +404,14 @@ interface TimelineProps {
   playing: boolean
   highlight?: { start: number; end: number } | null  // detik absolut (range komentar)
   onTogglePlay: () => void
-  onSeek: (t: number) => void  // detik absolut
+  onSeek: (t: number) => void  // detik absolut, auto-play
+  onSeekRaw: (t: number) => void  // detik absolut, tanpa play (drag)
+  onPause: () => void
   onReset: () => void
   onSplit: () => void
 }
 
-function TimelineEditor({ clip, currentTime, playing, highlight, onTogglePlay, onSeek, onReset, onSplit }: TimelineProps) {
+function TimelineEditor({ clip, currentTime, playing, highlight, onTogglePlay, onSeek, onSeekRaw, onPause, onReset, onSplit }: TimelineProps) {
   const clipDur = Math.max(1, clip.end - clip.start)
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -456,20 +458,24 @@ function TimelineEditor({ clip, currentTime, playing, highlight, onTogglePlay, o
     onSeek(clip.start + (pct / 100) * clipDur)
   }
 
-  // ── Drag playhead ──
+  // ── Drag playhead: pause dulu, seek tanpa play, play pas lepas ──
   const onPlayheadMouseDown = (e: React.MouseEvent) => {
     e.preventDefault()
     e.stopPropagation()
     dragging.current = 'playhead'
+    onPause()
+    let lastPct = getPct(e)
 
     const onMove = (ev: MouseEvent) => {
-      const pct = getPct(ev)
-      onSeek(clip.start + (pct / 100) * clipDur)
+      lastPct = getPct(ev)
+      onSeekRaw(clip.start + (lastPct / 100) * clipDur)
     }
     const onUp = () => {
       dragging.current = null
       window.removeEventListener('mousemove', onMove)
       window.removeEventListener('mouseup', onUp)
+      // lepas drag → play dari posisi akhir
+      onSeek(clip.start + (lastPct / 100) * clipDur)
     }
     window.addEventListener('mousemove', onMove)
     window.addEventListener('mouseup', onUp)
@@ -718,7 +724,14 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               pendingSeekRef.current = null
             }
           },
-          onStateChange: (e: any) => setPlaying(e.data === 1),
+          onStateChange: (e: any) => {
+            setPlaying(e.data === 1)
+            // sinkron: nangkep seek dari native bar YT (pause/play/buffering semua kirim posisi)
+            if (e.data === 1 || e.data === 2 || e.data === 3) {
+              const t = playerRef.current?.getCurrentTime?.()
+              if (typeof t === 'number') setCurrentTime(t)
+            }
+          },
         },
       })
     }
@@ -756,11 +769,17 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     const id = setInterval(() => {
       const p = playerRef.current
       if (p && typeof p.getCurrentTime === 'function') {
-        setCurrentTime(p.getCurrentTime())
+        const t = p.getCurrentTime()
+        setCurrentTime(t)
+        // sinkron: saat pause & posisi di luar clip aktif → pindah ke clip yang berisi t
+        if (!playing) {
+          const c = clips.find(c => t >= c.start && t <= c.end)
+          if (c && c.id !== activeClip?.id) setSelectedId(c.id)
+        }
       }
-    }, 250)
+    }, 200)
     return () => clearInterval(id)
-  }, [vidId, phase])
+  }, [vidId, phase, playing, clips, activeClip?.id])
 
   // ── Ambil komentar viewer (timestamp dari penonton) ──
   useEffect(() => {
@@ -879,16 +898,33 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     }
   }
 
-  const seekTo = (t: number) => {
+  // seek tanpa auto-play (dipakai pas drag playhead / reset)
+  const rawSeek = (t: number) => {
     const p = playerRef.current
     setCurrentTime(t)
     if (p && playerReadyRef.current) p.seekTo(t, true)
     else pendingSeekRef.current = t
   }
 
+  // seek + auto-play: klik timeline/komentar langsung muter
+  const seekTo = (t: number) => {
+    rawSeek(t)
+    const p = playerRef.current
+    if (p && playerReadyRef.current) {
+      p.playVideo()
+      setPlaying(true)
+    }
+  }
+
+  const pausePlayback = () => {
+    const p = playerRef.current
+    if (p) p.pauseVideo()
+    setPlaying(false)
+  }
+
   const resetPlayback = () => {
     if (!activeClip) return
-    seekTo(activeClip.start)
+    rawSeek(activeClip.start)
     const p = playerRef.current
     if (p) p.pauseVideo()
   }
@@ -1203,6 +1239,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             highlight={commentHl}
             onTogglePlay={togglePlay}
             onSeek={seekTo}
+            onSeekRaw={rawSeek}
+            onPause={pausePlayback}
             onReset={resetPlayback}
             onSplit={handleSplit}
           />
