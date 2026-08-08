@@ -1259,9 +1259,12 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                 <div key={clip.id} style={{ marginBottom: 8 }}>
               <div
                 onClick={() => {
+                  const wasOpen = openSecFor === clip.id
                   setSelectedId(clip.id)
-                  // dropdown konteks: toggle di bawah clip yang diklik
-                  setOpenSecFor(prev => (prev === clip.id ? null : clip.id))
+                  // klik clip = langsung buka dropdown konteks (toggle: klik lagi = tutup)
+                  setOpenSecFor(wasOpen ? null : clip.id)
+                  // pilihan konteks hanya berlaku per clip — reset saat PINDAH ke clip lain
+                  if (!wasOpen) setClipDlSec(prev => (prev != null ? null : prev))
                 }}
                 style={{
                   background: activeClip.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
@@ -1313,7 +1316,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                         className="btn-secondary"
                         onClick={() => {
                           setClipDlSec(n)
-                          setOpenSecFor(null)
+                          // dropdown tetap kebuka — ganti pilihan langsung klik tombol lain
                         }}
                         style={{
                           padding: '8px 0',
