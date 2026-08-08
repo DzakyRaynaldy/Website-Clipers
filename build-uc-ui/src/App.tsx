@@ -1007,7 +1007,12 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
   const handleDownloadClip = () => {
     if (!activeClip) return
-    downloadRange(activeClip.start, activeClip.end)
+    // kalau lagi pilih N detik dari komentar → download range komentar, bukan clip aktif
+    if (commentDlSec != null && commentDlTime != null) {
+      downloadRange(Math.max(0, commentDlTime - commentDlSec), commentDlTime)
+    } else {
+      downloadRange(activeClip.start, activeClip.end)
+    }
   }
 
   // ── Download dari komentar: pilih N detik sebelum adegan, klik Download baru jalan ──
@@ -1187,26 +1192,10 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                           </button>
                         ))}
                       </div>
-                      <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
-                        <button
-                          className="btn-primary glow-purple-sm"
-                          disabled={commentDlSec == null || downloading}
-                          onClick={() => {
-                            downloadRange(Math.max(0, commentDlTime - commentDlSec!), commentDlTime)
-                          }}
-                          style={{ padding: '8px 16px', fontSize: 12 }}
-                        >
-                          {downloading ? 'Memotong...' : '⬇ Download'}
-                        </button>
-                        <button
-                          onClick={() => { setCommentDlTime(null); setCommentDlSec(null) }}
-                          style={{
-                            background: 'transparent', border: 'none', color: 'var(--muted-foreground)',
-                            fontSize: 11, cursor: 'pointer', padding: 0,
-                          }}
-                        >
-                          Batal
-                        </button>
+                      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginTop: 8 }}>
+                        {commentDlSec != null
+                          ? `Range: ${formatTime(Math.max(0, commentDlTime - commentDlSec))} – ${formatTime(commentDlTime)} · klik ⬇ Download Clip di bawah`
+                          : 'Pilih durasi dulu, lalu klik ⬇ Download Clip di bawah'}
                       </div>
                     </div>
                   )}
@@ -1221,6 +1210,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                       setCommentHl({ start: Math.max(0, c.time - 30), end: c.time })
                       // munculin pilihan download: N detik sebelum adegan
                       setCommentDlTime(c.time)
+                      setCommentDlSec(null)
                     }}
                     style={{
                       background: commentHl && c.time >= commentHl.start && c.time <= commentHl.end ? 'rgba(234,179,8,0.1)' : 'var(--muted)',
