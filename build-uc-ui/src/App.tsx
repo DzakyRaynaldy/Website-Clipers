@@ -697,6 +697,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [downloading, setDownloading] = useState(false)
   const [dlJob, setDlJob] = useState<{ percent: number; stage: string; status: string } | null>(null)
   const [commentHl, setCommentHl] = useState<{ start: number; end: number } | null>(null)
+  const [commentDlTime, setCommentDlTime] = useState<number | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -953,9 +954,9 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     addToast('Clip di-split jadi 2!', 'success')
   }
 
-  // ── Download clip aktif (potong segmen video via backend, polling progress) ──
-  const handleDownloadClip = async () => {
-    if (!activeClip || !vidId) return
+  // ── Download range [start, end] (potong segmen via backend, polling progress) ──
+  const downloadRange = async (start: number, end: number) => {
+    if (!vidId) return
     setDownloading(true)
     setDlJob({ percent: 0, stage: 'Memulai...', status: 'processing' })
 
@@ -969,7 +970,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     }
 
     try {
-      const res = await API.downloadSegment(youtubeUrl, vidId, activeClip.start, activeClip.end)
+      const res = await API.downloadSegment(youtubeUrl, vidId, start, end)
       if (res.status === 'done' && res.download_url) {
         setDlJob({ percent: 100, stage: 'Selesai', status: 'done' })
         triggerDownload(res.download_url, res.filename)
@@ -1001,6 +1002,17 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
       addToast(`Download gagal: ${String(e).slice(0, 60)}`, 'error')
       setDownloading(false)
     }
+  }
+
+  const handleDownloadClip = () => {
+    if (!activeClip) return
+    downloadRange(activeClip.start, activeClip.end)
+  }
+
+  // ── Download dari komentar: pilih N detik sebelum adegan (5-30s) ──
+  const handleCommentDownload = (t: number, n: number) => {
+    setCommentDlTime(null)
+    downloadRange(Math.max(0, t - n), t)
   }
 
   const badgeColors: Record<string, string> = {
@@ -1142,7 +1154,45 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                   Belum ada komentar dengan timestamp
                 </div>
               ) : (
-                viewerComments.map((c, i) => (
+                <>
+                  {commentDlTime != null && (
+                    <div style={{
+                      background: 'rgba(168,85,247,0.08)',
+                      border: '1px solid rgba(168,85,247,0.3)',
+                      borderRadius: 10,
+                      padding: 10,
+                      marginBottom: 4,
+                    }}>
+                      <div style={{ fontSize: 12, fontWeight: 600, color: '#e9d5ff' }}>
+                        ⬇ Download clip dari komentar {formatTime(commentDlTime)}
+                      </div>
+                      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: '4px 0 8px' }}>
+                        Ambil berapa detik sebelum adegan?
+                      </div>
+                      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                        {[5, 10, 15, 20, 25, 30].map(n => (
+                          <button
+                            key={n}
+                            className="btn-secondary"
+                            onClick={() => handleCommentDownload(commentDlTime, n)}
+                            style={{ padding: '6px 10px', fontSize: 12 }}
+                          >
+                            {n}s sebelum
+                          </button>
+                        ))}
+                      </div>
+                      <button
+                        onClick={() => setCommentDlTime(null)}
+                        style={{
+                          background: 'transparent', border: 'none', color: 'var(--muted-foreground)',
+                          fontSize: 11, cursor: 'pointer', marginTop: 8, padding: 0,
+                        }}
+                      >
+                        Batal
+                      </button>
+                    </div>
+                  )}
+                {viewerComments.map((c, i) => (
                   <div
                     key={i}
                     onClick={() => {
@@ -1151,6 +1201,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                       setCurrentTime(c.time)
                       // highlight range = 30 detik sebelum → detik komentar
                       setCommentHl({ start: Math.max(0, c.time - 30), end: c.time })
+                      // munculin pilihan download: N detik sebelum adegan
+                      setCommentDlTime(c.time)
                     }}
                     style={{
                       background: commentHl && c.time >= commentHl.start && c.time <= commentHl.end ? 'rgba(234,179,8,0.1)' : 'var(--muted)',
@@ -1170,7 +1222,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.5 }}>{c.text}</div>
                   </div>
-                ))
+                ))}
+                </>
               )
             ) : (
               filteredClips.map((clip, i) => (
