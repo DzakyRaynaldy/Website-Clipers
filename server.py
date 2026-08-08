@@ -136,33 +136,53 @@ def get_subtitles():
 def get_comments():
     vid_id = request.json.get('vid_id', '')
     if not vid_id:
-        return jsonify({'timestamps': []})
+        return jsonify({'timestamps': [], 'comments': []})
     cache = DOWNLOADS / f'{vid_id}_comments.json'
     if cache.exists():
-        with open(cache, 'r') as f:
-            return jsonify(json.load(f))
+        data = json.loads(cache.read_text(encoding='utf-8'))
+        if 'comments' in data:
+            return jsonify(data)
+        # cache format lama — fetch ulang dengan komentar asli
     try:
         import yt_dlp
-        ydl_opts = {'skip_download': True, 'getcomments': True, 'quiet': True, 'no_warnings': True}
+        ydl_opts = {'skip_download': True, 'getcomments': True, 'quiet': True, 'no_warnings': True,
+                    'extractor_args': {'youtube': {'comment_sort': ['top']}}}
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             info = ydl.extract_info(f'https://www.youtube.com/watch?v={vid_id}', download=False)
+        duration = info.get('duration', 0) or 0
         comments = info.get('comments', [])
         ts_pattern = re.compile(r'(?:(\d{1,2}):)?(\d{1,2}):(\d{2})')
         ts_counts = {}
+        comment_items = []
         for c in comments:
             text = c.get('text', '')
             likes = c.get('like_count', 0) or 0
+            author = c.get('author', 'viewer')
             for m in ts_pattern.finditer(text):
                 total = int(m.group(1) or 0) * 3600 + int(m.group(2)) * 60 + int(m.group(3))
+                if duration and total > duration:
+                    continue
                 bucket = round(total / 5) * 5
                 ts_counts[bucket] = ts_counts.get(bucket, 0) + 1 + likes * 0.5
+                comment_items.append({'time': total, 'text': text[:200], 'likes': likes, 'author': author})
+        # dedup (time + awal teks), urut likes desc, max 50
+        seen = set()
+        unique_items = []
+        for ci in sorted(comment_items, key=lambda x: -x['likes']):
+            k = (ci['time'], ci['text'][:60])
+            if k in seen:
+                continue
+            seen.add(k)
+            unique_items.append(ci)
+            if len(unique_items) >= 50:
+                break
         sorted_ts = sorted(ts_counts.items(), key=lambda x: x[1], reverse=True)[:30]
-        result = {'timestamps': [{'time': t, 'score': round(sc, 1)} for t, sc in sorted_ts], 'total_comments': len(comments)}
-        with open(cache, 'w') as f:
-            json.dump(result, f)
+        result = {'timestamps': [{'time': t, 'score': round(sc, 1)} for t, sc in sorted_ts],
+                  'comments': unique_items, 'total_comments': len(comments)}
+        cache.write_text(json.dumps(result, ensure_ascii=False), encoding='utf-8')
         return jsonify(result)
     except Exception as e:
-        return jsonify({'timestamps': [], 'error': str(e)})
+        return jsonify({'timestamps': [], 'comments': [], 'error': str(e)})
 
 # ========== Audio Analysis ==========
 @app.route('/api/analyze', methods=['POST'])

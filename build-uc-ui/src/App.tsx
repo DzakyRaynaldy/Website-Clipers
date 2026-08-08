@@ -26,6 +26,13 @@ interface Clip {
   transkrip: string
 }
 
+interface ViewerComment {
+  time: number
+  text: string
+  likes: number
+  author: string
+}
+
 // YouTube IFrame API global
 declare global {
   interface Window {
@@ -164,6 +171,15 @@ const API = {
       body: JSON.stringify({ vid_id, clips }),
     })
     if (!res.ok) throw new Error('Subtitles gagal')
+    return res.json()
+  },
+  async comments(vid_id: string): Promise<any> {
+    const res = await fetch('/api/comments', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vid_id }),
+    })
+    if (!res.ok) throw new Error('Komentar gagal')
     return res.json()
   },
 }
@@ -628,6 +644,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [vidId, setVidId] = useState('')
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
+  const [viewerComments, setViewerComments] = useState<ViewerComment[]>([])
+  const [commentsLoading, setCommentsLoading] = useState(false)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -697,6 +715,18 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     }, 250)
     return () => clearInterval(id)
   }, [playing])
+
+  // ── Ambil komentar viewer (timestamp dari penonton) ──
+  useEffect(() => {
+    if (!vidId || phase !== 'editor') return
+    setCommentsLoading(true)
+    API.comments(vidId)
+      .then(res => {
+        setViewerComments(Array.isArray(res.comments) ? res.comments : [])
+      })
+      .catch(err => console.error('comments error:', err))
+      .finally(() => setCommentsLoading(false))
+  }, [vidId, phase])
 
   // ── Analisis: progress 0→100 + status text ──
   const handleAnalyze = async () => {
@@ -969,7 +999,43 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           </select>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {filteredClips.map((clip, i) => (
+            {filter === 'komentar' ? (
+              commentsLoading ? (
+                <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13, padding: '24px 0' }}>
+                  <div className="spinner" style={{ width: 16, height: 16, margin: '0 auto 8px' }} />
+                  Mengambil komentar...
+                </div>
+              ) : viewerComments.length === 0 ? (
+                <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13, padding: '24px 0' }}>
+                  Belum ada komentar dengan timestamp
+                </div>
+              ) : (
+                viewerComments.map((c, i) => (
+                  <div
+                    key={i}
+                    onClick={() => { seekTo(c.time); setCurrentTime(c.time) }}
+                    style={{
+                      background: 'var(--muted)',
+                      border: '1px solid var(--border)',
+                      borderRadius: 10,
+                      padding: '10px 12px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                      <span className="pill" style={{ background: 'rgba(59,130,246,0.2)', color: '#60a5fa', fontSize: 11, fontWeight: 700 }}>
+                        ⏱ {formatTime(c.time)}
+                      </span>
+                      <span style={{ fontSize: 10, color: 'var(--muted-foreground)' }}>@{c.author}</span>
+                      <span style={{ fontSize: 10, color: 'var(--muted-foreground)', marginLeft: 'auto' }}>👍 {c.likes}</span>
+                    </div>
+                    <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.5 }}>{c.text}</div>
+                  </div>
+                ))
+              )
+            ) : (
+              filteredClips.map((clip, i) => (
               <div
                 key={clip.id}
                 onClick={() => setSelectedId(clip.id)}
@@ -998,8 +1064,9 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                   {formatTime(clip.start)} – {formatTime(clip.end)} · {duration(clip)}s
                 </div>
               </div>
-            ))}
-            {filteredClips.length === 0 && (
+              ))
+            )}
+            {filter !== 'komentar' && filteredClips.length === 0 && (
               <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13, padding: '24px 0' }}>
                 Tidak ada clip ditemukan
               </div>
