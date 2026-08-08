@@ -1146,12 +1146,11 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                   <div
                     key={i}
                     onClick={() => {
-                      const s = Math.max(0, c.time - 30)
-                      seekTo(s)
-                      setCurrentTime(s)
-                      setCommentHl({ start: s, end: c.time + 30 })
-                      const p = playerRef.current
-                      if (p && playerReadyRef.current) p.playVideo()
+                      // play TEPAT di timestamp komentar (sinkron sama yang diklik)
+                      seekTo(c.time)
+                      setCurrentTime(c.time)
+                      // highlight range = 30 detik sebelum → detik komentar
+                      setCommentHl({ start: Math.max(0, c.time - 30), end: c.time })
                     }}
                     style={{
                       background: commentHl && c.time >= commentHl.start && c.time <= commentHl.end ? 'rgba(234,179,8,0.1)' : 'var(--muted)',
