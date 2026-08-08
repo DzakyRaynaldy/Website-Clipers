@@ -398,45 +398,55 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
 
 // ─── Timeline Editor (CapCut style, sync dengan YouTube player) ───────────────
 
-// ── Panel pilihan N detik sebelum (dipakai komentar & clip) ──
-function SecPickPanel({ title, start, end, sec, onPick }: {
+// ── Dropdown pilihan N detik sebelum (dipakai komentar & clip) ──
+function SecPickDrop({ title, sec, onPick, onClear }: {
   title: string
-  start: number  // awal range setelah N dipilih
-  end: number    // akhir range
   sec: number | null
   onPick: (n: number) => void
+  onClear: () => void
 }) {
   return (
     <div style={{
-      background: 'rgba(168,85,247,0.08)',
-      border: '1px solid rgba(168,85,247,0.3)',
+      background: '#1c1c22',
+      border: '1px solid rgba(168,85,247,0.35)',
       borderRadius: 10,
       padding: 10,
-      marginBottom: 4,
+      marginTop: 6,
     }}>
-      <div style={{ fontSize: 12, fontWeight: 600, color: '#e9d5ff' }}>{title}</div>
-      <div style={{ fontSize: 11, color: 'var(--muted-foreground)', margin: '4px 0 8px' }}>
-        {sec != null
-          ? `Range: ${formatTime(start)} – ${formatTime(end)} · klik ⬇ Download Clip di bawah`
-          : 'Ambil berapa detik sebelum momen?'}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+        <span style={{ color: '#fbbf24', fontWeight: 800, fontSize: 13 }}>!</span>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{title}</div>
       </div>
-      <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+      <div style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px 19px' }}>
+        Ambil berapa detik sebelum momen?
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
         {[5, 10, 15, 20, 25, 30].map(n => (
           <button
             key={n}
             className="btn-secondary"
             onClick={() => onPick(n)}
             style={{
-              padding: '6px 10px',
+              padding: '8px 0',
               fontSize: 12,
-              background: sec === n ? 'rgba(168,85,247,0.35)' : undefined,
-              borderColor: sec === n ? 'rgba(168,85,247,0.6)' : undefined,
+              fontWeight: 600,
+              borderRadius: 999,
+              background: sec === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
+              border: `1px solid ${sec === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
+              color: '#fff',
             }}
           >
             {n}s sebelum
           </button>
         ))}
       </div>
+      <button
+        className="btn-secondary"
+        onClick={onClear}
+        style={{ marginTop: 8, width: '100%', padding: '8px 0', fontSize: 12, borderRadius: 10, color: '#9ca3af' }}
+      >
+        Tanpa konteks (langsung full clip)
+      </button>
     </div>
   )
 }
@@ -746,6 +756,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [commentDlSec, setCommentDlSec] = useState<number | null>(null)
   const [clipDlSec, setClipDlSec] = useState<number | null>(null)
   const [openSecFor, setOpenSecFor] = useState<number | null>(null)
+  const [openCmtFor, setOpenCmtFor] = useState<number | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -1064,12 +1075,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     }
   }
 
-  // ── Download dari komentar: pilih N detik sebelum adegan, klik Download baru jalan ──
-  const handleCommentDownload = (t: number, n: number) => {
-    setCommentDlTime(t)
-    setCommentDlSec(n)
-  }
-
   const badgeColors: Record<string, string> = {
     kaget: 'rgba(239,68,68,0.2)',
     lucu: 'rgba(234,179,8,0.2)',
@@ -1210,27 +1215,21 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                 </div>
               ) : (
                 <>
-                  {commentDlTime != null && (
-                    <SecPickPanel
-                      title={`⬇ Download clip dari komentar ${formatTime(commentDlTime)}`}
-                      start={Math.max(0, commentDlTime - (commentDlSec ?? 0))}
-                      end={commentDlTime}
-                      sec={commentDlSec}
-                      onPick={n => handleCommentDownload(commentDlTime, n)}
-                    />
-                  )}
                 {viewerComments.map((c, i) => (
+                  <div key={i} style={{ marginBottom: 8 }}>
                   <div
-                    key={i}
                     onClick={() => {
+                      const wasOpen = openCmtFor === c.time
                       // play TEPAT di timestamp komentar (sinkron sama yang diklik)
                       seekTo(c.time)
                       setCurrentTime(c.time)
                       // highlight range = 30 detik sebelum → detik komentar
                       setCommentHl({ start: Math.max(0, c.time - 30), end: c.time })
-                      // munculin pilihan download: N detik sebelum adegan
+                      // dropdown konteks: buka/tutup di bawah komentar ini
+                      setOpenCmtFor(wasOpen ? null : c.time)
                       setCommentDlTime(c.time)
-                      setCommentDlSec(null)
+                      // pilihan konteks hanya berlaku per komentar — reset saat pindah
+                      if (!wasOpen) setCommentDlSec(null)
                     }}
                     style={{
                       background: commentHl && c.time >= commentHl.start && c.time <= commentHl.end ? 'rgba(234,179,8,0.1)' : 'var(--muted)',
@@ -1249,6 +1248,24 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                       <span style={{ fontSize: 10, color: 'var(--muted-foreground)', marginLeft: 'auto' }}>👍 {c.likes}</span>
                     </div>
                     <div style={{ fontSize: 12, color: 'var(--foreground)', lineHeight: 1.5 }}>{c.text}</div>
+                  </div>
+                  {/* Dropdown konteks — muncul di bawah komentar yang diklik */}
+                  {openCmtFor === c.time && (
+                    <SecPickDrop
+                      title={`Download clip dari komentar ${formatTime(c.time)}`}
+                      sec={commentDlSec}
+                      onPick={n => {
+                        setCommentDlTime(c.time)
+                        setCommentDlSec(n)
+                        // dropdown tetap kebuka — ganti pilihan langsung klik tombol lain
+                      }}
+                      onClear={() => {
+                        setCommentDlSec(null)
+                        setCommentDlTime(null)
+                        setOpenCmtFor(null)
+                      }}
+                    />
+                  )}
                   </div>
                 ))}
                 </>
@@ -1293,56 +1310,15 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               </div>
               {/* Dropdown konteks — muncul di bawah clip yang diklik */}
               {openSecFor === clip.id && (
-                <div style={{
-                  background: '#1c1c22',
-                  border: '1px solid rgba(168,85,247,0.35)',
-                  borderRadius: 10,
-                  padding: 10,
-                  marginTop: 6,
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
-                    <span style={{ color: '#fbbf24', fontWeight: 800, fontSize: 13 }}>!</span>
-                    <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
-                      Download clip dengan konteks sebelum momen
-                    </div>
-                  </div>
-                  <div style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px 19px' }}>
-                    Ambil berapa detik sebelum momen?
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                    {[5, 10, 15, 20, 25, 30].map(n => (
-                      <button
-                        key={n}
-                        className="btn-secondary"
-                        onClick={() => {
-                          setClipDlSec(n)
-                          // dropdown tetap kebuka — ganti pilihan langsung klik tombol lain
-                        }}
-                        style={{
-                          padding: '8px 0',
-                          fontSize: 12,
-                          fontWeight: 600,
-                          borderRadius: 999,
-                          background: clipDlSec === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
-                          border: `1px solid ${clipDlSec === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
-                          color: '#fff',
-                        }}
-                      >
-                        {n}s sebelum
-                      </button>
-                    ))}
-                  </div>
-                  <button
-                    className="btn-secondary"
-                    onClick={() => {
-                      setClipDlSec(null)
-                      setOpenSecFor(null)
-                    }}
-                    style={{ marginTop: 8, width: '100%', padding: '8px 0', fontSize: 12, borderRadius: 10, color: '#9ca3af' }}
-                  >
-                    Tanpa konteks (langsung full clip)
-                  </button>
-                </div>
+                <SecPickDrop
+                  title="Download clip dengan konteks sebelum momen"
+                  sec={clipDlSec}
+                  onPick={n => setClipDlSec(n)}
+                  onClear={() => {
+                    setClipDlSec(null)
+                    setOpenSecFor(null)
+                  }}
+                />
               )}
                 </div>
               ))}
