@@ -441,75 +441,7 @@ function SecPickPanel({ title, start, end, sec, onPick }: {
   )
 }
 
-// ── Modal pilihan N detik sebelum (muncul pas klik clip, gaya mockup Figma) ──
-function SecPickModal({ open, sec, onPick, onClose }: {
-  open: boolean
-  sec: number | null
-  onPick: (n: number) => void
-  onClose: () => void
-}) {
-  if (!open) return null
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: 'fixed', inset: 0, zIndex: 1000,
-        background: 'rgba(0,0,0,0.65)',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        padding: 16,
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        style={{
-          width: '100%', maxWidth: 340,
-          background: '#1c1c22',
-          border: '1px solid rgba(255,255,255,0.08)',
-          borderRadius: 16,
-          padding: '22px 20px',
-          boxShadow: '0 16px 48px rgba(0,0,0,0.55)',
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-          <span style={{ color: '#fbbf24', fontWeight: 800, fontSize: 17, lineHeight: 1 }}>!</span>
-          <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', lineHeight: 1.35 }}>
-            Download clip dengan konteks sebelum momen
-          </div>
-        </div>
-        <div style={{ fontSize: 13, color: '#9ca3af', margin: '0 0 14px 25px' }}>
-          Ambil berapa detik sebelum momen?
-        </div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {[5, 10, 15, 20, 25, 30].map(n => (
-            <button
-              key={n}
-              className="btn-secondary"
-              onClick={() => onPick(n)}
-              style={{
-                padding: '10px 0',
-                fontSize: 13,
-                fontWeight: 600,
-                borderRadius: 999,
-                background: sec === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
-                border: `1px solid ${sec === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
-                color: '#fff',
-              }}
-            >
-              {n}s sebelum
-            </button>
-          ))}
-        </div>
-        <button
-          className="btn-secondary"
-          onClick={onClose}
-          style={{ marginTop: 12, width: '100%', padding: '9px 0', fontSize: 13, borderRadius: 10, color: '#9ca3af' }}
-        >
-          Tanpa konteks (langsung full clip)
-        </button>
-      </div>
-    </div>
-  )
-}
+
 
 interface TimelineProps {
   clip: Clip
@@ -813,7 +745,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [commentDlTime, setCommentDlTime] = useState<number | null>(null)
   const [commentDlSec, setCommentDlSec] = useState<number | null>(null)
   const [clipDlSec, setClipDlSec] = useState<number | null>(null)
-  const [secModalOpen, setSecModalOpen] = useState(false)
+  const [openSecFor, setOpenSecFor] = useState<number | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -1324,11 +1256,12 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             ) : (
               <>
                 {filteredClips.map((clip, i) => (
+                <div key={clip.id} style={{ marginBottom: 8 }}>
               <div
-                key={clip.id}
                 onClick={() => {
                   setSelectedId(clip.id)
-                  setSecModalOpen(true)  // modal pilihan konteks pas klik clip
+                  // dropdown konteks: toggle di bawah clip yang diklik
+                  setOpenSecFor(prev => (prev === clip.id ? null : clip.id))
                 }}
                 style={{
                   background: activeClip.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
@@ -1355,6 +1288,60 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                   {formatTime(clip.start)} – {formatTime(clip.end)} · {duration(clip)}s
                 </div>
               </div>
+              {/* Dropdown konteks — muncul di bawah clip yang diklik */}
+              {openSecFor === clip.id && (
+                <div style={{
+                  background: '#1c1c22',
+                  border: '1px solid rgba(168,85,247,0.35)',
+                  borderRadius: 10,
+                  padding: 10,
+                  marginTop: 6,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                    <span style={{ color: '#fbbf24', fontWeight: 800, fontSize: 13 }}>!</span>
+                    <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>
+                      Download clip dengan konteks sebelum momen
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px 19px' }}>
+                    Ambil berapa detik sebelum momen?
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+                    {[5, 10, 15, 20, 25, 30].map(n => (
+                      <button
+                        key={n}
+                        className="btn-secondary"
+                        onClick={() => {
+                          setClipDlSec(n)
+                          setOpenSecFor(null)
+                        }}
+                        style={{
+                          padding: '8px 0',
+                          fontSize: 12,
+                          fontWeight: 600,
+                          borderRadius: 999,
+                          background: clipDlSec === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
+                          border: `1px solid ${clipDlSec === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
+                          color: '#fff',
+                        }}
+                      >
+                        {n}s sebelum
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setClipDlSec(null)
+                      setOpenSecFor(null)
+                    }}
+                    style={{ marginTop: 8, width: '100%', padding: '8px 0', fontSize: 12, borderRadius: 10, color: '#9ca3af' }}
+                  >
+                    Tanpa konteks (langsung full clip)
+                  </button>
+                </div>
+              )}
+                </div>
               ))}
               </>
             )}
@@ -1519,17 +1506,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           </div>
         </div>
       </div>
-
-      {/* Modal pilihan konteks — muncul pas klik clip */}
-      <SecPickModal
-        open={secModalOpen}
-        sec={clipDlSec}
-        onPick={n => {
-          setClipDlSec(n)
-          setSecModalOpen(false)
-        }}
-        onClose={() => setSecModalOpen(false)}
-      />
     </div>
   )
 }
