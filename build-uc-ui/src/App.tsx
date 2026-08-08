@@ -182,6 +182,15 @@ const API = {
     if (!res.ok) throw new Error('Komentar gagal')
     return res.json()
   },
+  async downloadSegment(url: string, vid_id: string, start: number, end: number): Promise<any> {
+    const res = await fetch('/api/download-video-segment', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, vid_id, start, end }),
+    })
+    if (!res.ok) throw new Error('Gagal download segment')
+    return res.json()
+  },
 }
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
@@ -646,6 +655,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [currentTime, setCurrentTime] = useState(0)
   const [viewerComments, setViewerComments] = useState<ViewerComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
+  const [downloading, setDownloading] = useState(false)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -869,6 +879,27 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     setSelectedId(right.id)
     seekTo(t)
     addToast('Clip di-split jadi 2!', 'success')
+  }
+
+  // ── Download clip aktif (potong segmen video via backend) ──
+  const handleDownloadClip = async () => {
+    if (!activeClip || !vidId) return
+    setDownloading(true)
+    addToast('Memotong segmen video...', 'info')
+    try {
+      const res = await API.downloadSegment(youtubeUrl, vidId, activeClip.start, activeClip.end)
+      const a = document.createElement('a')
+      a.href = res.download_url
+      a.download = res.filename || ''
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      addToast(`Download ${res.filename || 'clip'} dimulai!`, 'success')
+    } catch (e) {
+      addToast(`Download gagal: ${String(e).slice(0, 60)}`, 'error')
+    } finally {
+      setDownloading(false)
+    }
   }
 
   const badgeColors: Record<string, string> = {
@@ -1179,9 +1210,15 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               <button
                 className="btn-primary glow-purple-sm"
                 style={{ padding: '10px', fontSize: 13, width: '100%' }}
-                onClick={() => addToast('Download clip belum tersedia', 'info')}
+                onClick={handleDownloadClip}
+                disabled={downloading}
               >
-                ⬇ Download Clip
+                {downloading ? (
+                  <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+                    <div className="spinner" style={{ width: 14, height: 14 }} />
+                    Memotong...
+                  </span>
+                ) : '⬇ Download Clip'}
               </button>
             </div>
           </div>
