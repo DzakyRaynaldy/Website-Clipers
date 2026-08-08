@@ -425,6 +425,25 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
     onSeek(clip.start + (pct / 100) * clipDur)
   }
 
+  // ── Drag playhead ──
+  const onPlayheadMouseDown = (e: React.MouseEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    dragging.current = 'playhead'
+
+    const onMove = (ev: MouseEvent) => {
+      const pct = getPct(ev)
+      onSeek(clip.start + (pct / 100) * clipDur)
+    }
+    const onUp = () => {
+      dragging.current = null
+      window.removeEventListener('mousemove', onMove)
+      window.removeEventListener('mouseup', onUp)
+    }
+    window.addEventListener('mousemove', onMove)
+    window.addEventListener('mouseup', onUp)
+  }
+
   const reset = () => {
     setTrimStart(0)
     setTrimEnd(100)
@@ -544,19 +563,32 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
           <span style={{ color: '#fff', fontSize: 10, pointerEvents: 'none' }}>▶</span>
         </div>
 
-        <div style={{
-          position: 'absolute',
-          left: `${playheadPct}%`,
-          top: 0,
-          bottom: 0,
-          width: 3,
-          background: '#ef4444',
-          zIndex: 4,
-          transform: 'translateX(-50%)',
-          borderRadius: 2,
-          pointerEvents: 'none',
-          transition: 'left 0.15s linear',
-        }}>
+        <div
+          onMouseDown={onPlayheadMouseDown}
+          style={{
+            position: 'absolute',
+            left: `${playheadPct}%`,
+            top: 0,
+            bottom: 0,
+            width: 14,
+            background: 'transparent',
+            zIndex: 5,
+            transform: 'translateX(-50%)',
+            cursor: 'ew-resize',
+          }}
+        >
+          <div style={{
+            position: 'absolute',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            top: 0,
+            bottom: 0,
+            width: 3,
+            background: '#ef4444',
+            borderRadius: 2,
+            pointerEvents: 'none',
+            transition: 'left 0.15s linear',
+          }} />
           <span style={{
             position: 'absolute',
             top: -14,
@@ -565,6 +597,7 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
             color: '#ef4444',
             fontSize: 10,
             lineHeight: 1,
+            pointerEvents: 'none',
           }}>▼</span>
         </div>
       </div>
