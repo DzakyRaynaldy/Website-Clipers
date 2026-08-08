@@ -36,7 +36,7 @@ interface IdeKonten {
   sumber: string
 }
 
-// ─── Mock Data ────────────────────────────────────────────────────────────────
+// ─── Mock Data (dari desain Figma) ────────────────────────────────────────────
 
 const MOCK_CLIPS: Clip[] = [
   {
@@ -127,7 +127,7 @@ const MOCK_IDE_KONTEN: IdeKonten[] = [
     judul: 'Sejarah Perang Diponegoro yang Tidak Diajarkan di Sekolah',
     keyword: 'sejarah indonesia tersembunyi',
     deskripsi: 'Fakta-fakta mengejutkan tentang Perang Diponegoro yang jarang dibahas, dari sumber primer dan arsip kolonial Belanda.',
-    hashtags: ['#sejarahindonesia', '#diponegoro', '#fakta', '#edukasi'],
+    hashtags: ['#sejarahindonesia', '#diponegoro', '#faktalucu', '#edukasi'],
     sumber: 'youtube.com/watch?v=abc123def',
   },
   {
@@ -186,17 +186,16 @@ const TOP_KEYWORDS = [
 // ─── Utils ────────────────────────────────────────────────────────────────────
 
 function formatTime(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds))
-  const m = Math.floor(s / 60)
-  const sec = s % 60
-  return `${m}:${sec.toString().padStart(2, '0')}`
+  const m = Math.floor(seconds / 60)
+  const s = Math.round(seconds % 60)
+  return `${m}:${s.toString().padStart(2, '0')}`
 }
 
 function duration(clip: Clip): number {
   return Math.round(clip.end - clip.start)
 }
 
-// ─── API Service ─────────────────────────────────────────────────────────────
+// ─── API (wiring backend, fallback ke mock kalau gagal) ──────────────────────
 
 const API = {
   async trending(category: string): Promise<IdeKonten[]> {
@@ -208,7 +207,9 @@ const API = {
       })
       if (!res.ok) throw new Error('API error')
       const data = await res.json()
-      return data.videos?.map((v: any, i: number) => ({
+      const videos = data.videos || []
+      if (videos.length === 0) return []
+      return videos.map((v: any, i: number) => ({
         id: i,
         format: i % 2 === 0 ? 'Short' : 'Normal',
         judul: v.title || 'Untitled',
@@ -216,11 +217,29 @@ const API = {
         deskripsi: v.description || 'Video trending dari YouTube',
         hashtags: ['#viral', `#${category}`, '#youtube', '#shorts', '#trending'],
         sumber: `youtube.com/watch?v=${v.id}`,
-      })) || []
+      }))
     } catch (e) {
       console.error('Trending API error:', e)
       return []
     }
+  },
+  async downloadAudio(url: string): Promise<any> {
+    const res = await fetch('/api/download-audio', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url }),
+    })
+    if (!res.ok) throw new Error('Download gagal')
+    return res.json()
+  },
+  async analyze(filename: string, vid_id: string): Promise<any> {
+    const res = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ filename, vid_id }),
+    })
+    if (!res.ok) throw new Error('Analisis gagal')
+    return res.json()
   },
 }
 
@@ -294,6 +313,7 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
       zIndex: 100,
     }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 60, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
+        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
           <span style={{ fontSize: 22 }}>📋</span>
           <span style={{ fontSize: 18, fontWeight: 800, fontFamily: '"Oxanium", sans-serif', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '0.04em' }}>
@@ -301,6 +321,7 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
           </span>
         </div>
 
+        {/* Tabs — center persis */}
         <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
           {tabs.map(t => (
             <button
@@ -325,6 +346,7 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
           ))}
         </div>
 
+        {/* Dark/Light toggle */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={() => setDark(!dark)}
@@ -353,6 +375,7 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
 function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '80px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
+      {/* Hero glow */}
       <div style={{
         position: 'absolute',
         top: '20%',
@@ -382,6 +405,7 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           Auto-clip & riset konten YouTube <strong style={{ color: 'var(--foreground)' }}>powered by AI</strong> — temukan momen terbaik, buat konten viral lebih cepat.
         </p>
 
+        {/* CTA Buttons */}
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 64 }}>
           <button className="btn-primary glow-purple" onClick={() => setActiveTab('clip')} style={{ padding: '16px 36px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
             🎬 Mulai Clip
@@ -391,6 +415,7 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           </button>
         </div>
 
+        {/* Feature pills */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 64 }}>
           {['😱 Kaget Detection', '😂 Lucu Score', '🔊 Audio Peak', '📊 AI Analysis', '⬇️ Auto Download', '📱 Multi Format'].map(f => (
             <span key={f} style={{
@@ -407,6 +432,7 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           ))}
         </div>
 
+        {/* Stats row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, width: '100%', maxWidth: 680, margin: '0 auto' }}>
           {[
             { val: '10K+', label: 'Video Diproses' },
@@ -432,14 +458,17 @@ function TimelineEditor({ clip }: { clip: Clip }) {
   const totalDuration = Math.max(1, clip.end - clip.start)
   const trackRef = useRef<HTMLDivElement>(null)
 
-  const [trimStart, setTrimStart] = useState(0)
-  const [trimEnd, setTrimEnd] = useState(100)
-  const [playhead, setPlayhead] = useState(0)
+  const [trimStart, setTrimStart] = useState(0)       // 0–100 percent
+  const [trimEnd, setTrimEnd] = useState(100)          // 0–100 percent
+  const [playhead, setPlayhead] = useState(0)          // 0–100 percent
   const [playing, setPlaying] = useState(false)
   const [hoveredHandle, setHoveredHandle] = useState<'left' | 'right' | null>(null)
   const dragging = useRef<'left' | 'right' | null>(null)
   const animRef = useRef<number>(0)
+  const playStartTime = useRef<number>(0)
+  const playStartPct = useRef<number>(0)
 
+  // Reset on clip change
   useEffect(() => {
     setTrimStart(0)
     setTrimEnd(100)
@@ -447,27 +476,31 @@ function TimelineEditor({ clip }: { clip: Clip }) {
     setPlaying(false)
   }, [clip.id])
 
+  // Playhead animation
   useEffect(() => {
     if (!playing) return
-    const start = performance.now()
-    const startPct = playhead
+    playStartTime.current = performance.now()
+    playStartPct.current = playhead
+
     const tick = (now: number) => {
-      const elapsed = (now - start) / 1000
-      const range = (trimEnd - trimStart) / 100 * totalDuration
-      const pct = (elapsed / Math.max(0.1, range)) * (trimEnd - trimStart)
-      if (startPct + pct >= trimEnd) {
+      const elapsed = (now - playStartTime.current) / 1000          // seconds
+      const range = (trimEnd - trimStart) / 100 * totalDuration     // seconds in range
+      const pctMoved = (elapsed / Math.max(0.1, range)) * (trimEnd - trimStart)
+      const next = playStartPct.current + pctMoved
+
+      if (next >= trimEnd) {
         setPlayhead(trimStart)
         setPlaying(false)
         return
       }
-      setPlayhead(startPct + pct)
+      setPlayhead(next)
       animRef.current = requestAnimationFrame(tick)
     }
     animRef.current = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(animRef.current)
   }, [playing])
 
-  const getPct = (e: React.MouseEvent | MouseEvent) => {
+  const getPct = (e: MouseEvent | React.MouseEvent) => {
     if (!trackRef.current) return 0
     const rect = trackRef.current.getBoundingClientRect()
     return Math.max(0, Math.min(100, ((e.clientX - rect.left) / rect.width) * 100))
@@ -476,10 +509,11 @@ function TimelineEditor({ clip }: { clip: Clip }) {
   const onMouseDown = (handle: 'left' | 'right') => (e: React.MouseEvent) => {
     e.preventDefault()
     dragging.current = handle
+
     const onMove = (ev: MouseEvent) => {
       const pct = getPct(ev)
-      if (handle === 'left') setTrimStart(Math.min(pct, trimEnd - 5))
-      if (handle === 'right') setTrimEnd(Math.max(pct, trimStart + 5))
+      if (dragging.current === 'left') setTrimStart(Math.min(pct, trimEnd - 5))
+      if (dragging.current === 'right') setTrimEnd(Math.max(pct, trimStart + 5))
     }
     const onUp = () => {
       dragging.current = null
@@ -502,6 +536,7 @@ function TimelineEditor({ clip }: { clip: Clip }) {
 
   return (
     <div style={{ background: '#13131d', border: '1px solid #252538', borderRadius: 12, padding: 12 }}>
+      {/* Header Row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#e8e8ef', flex: 1 }}>✂️ Manual Timeline</span>
         <button
@@ -519,30 +554,61 @@ function TimelineEditor({ clip }: { clip: Clip }) {
         >
           {playing ? '⏸ Pause' : '▶ Play'}
         </button>
-        <button style={{ background: 'none', border: '1px solid #252538', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#e8e8ef', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => {}}>
+        <button
+          style={{ background: 'none', border: '1px solid #252538', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#e8e8ef', cursor: 'pointer', fontFamily: 'inherit' }}
+          onClick={() => {}}
+        >
           ✂ Split
         </button>
-        <button style={{ background: 'none', border: '1px solid #252538', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#e8e8ef', cursor: 'pointer', fontFamily: 'inherit' }} onClick={reset}>
+        <button
+          style={{ background: 'none', border: '1px solid #252538', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#e8e8ef', cursor: 'pointer', fontFamily: 'inherit' }}
+          onClick={reset}
+        >
           ↻ Reset
         </button>
       </div>
 
-      <div ref={trackRef} style={{ width: '100%', height: 48, background: '#0b0b10', borderRadius: 8, position: 'relative', userSelect: 'none' }}>
+      {/* Track */}
+      <div
+        ref={trackRef}
+        style={{ width: '100%', height: 48, background: '#0b0b10', borderRadius: 8, position: 'relative', userSelect: 'none' }}
+      >
+        {/* Tick marks */}
         {[0, 25, 50, 75, 100].map(p => (
-          <div key={p} style={{ position: 'absolute', left: `${p}%`, top: 0, bottom: 0, width: 1, background: 'rgba(255,255,255,0.04)' }} />
+          <div key={p} style={{
+            position: 'absolute', left: `${p}%`, top: 0, bottom: 0,
+            width: 1, background: 'rgba(255,255,255,0.04)',
+          }} />
         ))}
 
-        <div style={{ position: 'absolute', left: `${trimStart}%`, width: `${trimEnd - trimStart}%`, top: 0, bottom: 0, background: 'rgba(124,58,237,0.3)', border: '2px solid #7c3aed', borderRadius: 6, pointerEvents: 'none' }} />
+        {/* Purple selected range */}
+        <div style={{
+          position: 'absolute',
+          left: `${trimStart}%`,
+          width: `${trimEnd - trimStart}%`,
+          top: 0, bottom: 0,
+          background: 'rgba(124,58,237,0.3)',
+          border: '2px solid #7c3aed',
+          borderRadius: 6,
+          pointerEvents: 'none',
+        }} />
 
+        {/* Left handle */}
         <div
           onMouseDown={onMouseDown('left')}
           onMouseEnter={() => setHoveredHandle('left')}
           onMouseLeave={() => setHoveredHandle(null)}
           style={{
-            position: 'absolute', left: `${trimStart}%`, transform: 'translateX(-50%)', top: 0, width: 20, height: 48,
+            position: 'absolute',
+            left: `${trimStart}%`,
+            transform: 'translateX(-50%)',
+            top: 0,
+            width: 20, height: 48,
             background: hoveredHandle === 'left' ? '#a855f7' : '#7c3aed',
-            borderRadius: '6px 2px 2px 6px', cursor: 'ew-resize',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3,
+            borderRadius: '6px 2px 2px 6px',
+            cursor: 'ew-resize',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 3,
             transition: 'background 0.15s ease',
             boxShadow: hoveredHandle === 'left' ? '0 0 10px rgba(168,85,247,0.5)' : 'none',
           }}
@@ -550,15 +616,22 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           <span style={{ color: '#fff', fontSize: 10, pointerEvents: 'none' }}>◀</span>
         </div>
 
+        {/* Right handle */}
         <div
           onMouseDown={onMouseDown('right')}
           onMouseEnter={() => setHoveredHandle('right')}
           onMouseLeave={() => setHoveredHandle(null)}
           style={{
-            position: 'absolute', left: `${trimEnd}%`, transform: 'translateX(-50%)', top: 0, width: 20, height: 48,
+            position: 'absolute',
+            left: `${trimEnd}%`,
+            transform: 'translateX(-50%)',
+            top: 0,
+            width: 20, height: 48,
             background: hoveredHandle === 'right' ? '#a855f7' : '#7c3aed',
-            borderRadius: '2px 6px 6px 2px', cursor: 'ew-resize',
-            display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 3,
+            borderRadius: '2px 6px 6px 2px',
+            cursor: 'ew-resize',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 3,
             transition: 'background 0.15s ease',
             boxShadow: hoveredHandle === 'right' ? '0 0 10px rgba(168,85,247,0.5)' : 'none',
           }}
@@ -566,11 +639,32 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           <span style={{ color: '#fff', fontSize: 10, pointerEvents: 'none' }}>▶</span>
         </div>
 
-        <div style={{ position: 'absolute', left: `${playhead}%`, top: 0, bottom: 0, width: 3, background: '#ef4444', zIndex: 4, transform: 'translateX(-50%)', borderRadius: 2, pointerEvents: 'none' }}>
-          <span style={{ position: 'absolute', top: -14, left: '50%', transform: 'translateX(-50%)', color: '#ef4444', fontSize: 10, lineHeight: 1 }}>▼</span>
+        {/* Playhead */}
+        <div style={{
+          position: 'absolute',
+          left: `${playhead}%`,
+          top: 0,
+          bottom: 0,
+          width: 3,
+          background: '#ef4444',
+          zIndex: 4,
+          transform: 'translateX(-50%)',
+          borderRadius: 2,
+          pointerEvents: 'none',
+        }}>
+          <span style={{
+            position: 'absolute',
+            top: -14,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            color: '#ef4444',
+            fontSize: 10,
+            lineHeight: 1,
+          }}>▼</span>
         </div>
       </div>
 
+      {/* Labels */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
         <span style={{ fontSize: 11, color: '#8888a0' }}>{formatTime(Math.round(startSec))}</span>
         <span style={{ fontSize: 11, color: '#8888a0' }}>Durasi: {durSec}s</span>
@@ -583,17 +677,24 @@ function TimelineEditor({ clip }: { clip: Clip }) {
 // ─── Clip Editor ──────────────────────────────────────────────────────────────
 
 function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => void }) {
-  const [youtubeUrl, setYoutubeUrl] = useState('')
-  const [vidId, setVidId] = useState('')
-  const [loading, setLoading] = useState(false)
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
-  const [selectedClip, setSelectedClip] = useState<Clip | null>(null)
-  const [clips, setClips] = useState<Clip[]>([])
+  const [selectedClip, setSelectedClip] = useState<Clip>(MOCK_CLIPS[0])
+  const [manualStart, setManualStart] = useState('')
+  const [manualEnd, setManualEnd] = useState('')
+  const [progress, setProgress] = useState(0)
+  const [downloading, setDownloading] = useState(false)
+  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [vidId, setVidId] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [realClips, setRealClips] = useState<Clip[]>([])
 
-  const displayClips = clips.length > 0 ? clips : MOCK_CLIPS
+  const YOUTUBE_URL = 'https://www.youtube.com/embed/dQw4w9WgXcQ'
 
-  const filteredClips = displayClips.filter(c => {
+  const clips = realClips.length > 0 ? realClips : MOCK_CLIPS
+  const activeClip = clips.find(c => c.id === selectedClip.id) || clips[0]
+
+  const filteredClips = clips.filter(c => {
     const matchSearch = c.keyword.toLowerCase().includes(search.toLowerCase())
     const matchFilter = filter === 'all' || c.badgeType === filter || (filter === 'pendek' && duration(c) <= 30)
     return matchSearch && matchFilter
@@ -611,6 +712,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     audio: '#60a5fa',
     komentar: '#4ade80',
   }
+
   const labelColors: Record<string, string> = {
     Shorts: 'rgba(239,68,68,0.15)',
     Reels: 'rgba(236,72,153,0.15)',
@@ -622,33 +724,23 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     Video: '#a855f7',
   }
 
-  const handleDownloadVideo = async () => {
+  const handleAnalyze = async () => {
     if (!youtubeUrl.trim()) {
       addToast('Masukkan URL YouTube terlebih dahulu', 'error')
       return
     }
-    setLoading(true)
+    setAnalyzing(true)
+    setProgress(0)
     addToast('Memulai download audio...', 'info')
     try {
-      const res = await fetch('/api/download-audio', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: youtubeUrl }),
-      })
-      if (!res.ok) throw new Error('Download gagal')
-      const data = await res.json()
+      const data = await API.downloadAudio(youtubeUrl)
       setVidId(data.vid_id)
-
+      setProgress(40)
       addToast('Menganalisis audio, ini agak lama...', 'info')
-      const analyzeRes = await fetch('/api/analyze', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: data.filename, vid_id: data.vid_id }),
-      })
-      if (!analyzeRes.ok) throw new Error('Analisis gagal')
-      const moments = await analyzeRes.json()
+      const moments = await API.analyze(data.filename, data.vid_id)
+      setProgress(90)
 
-      const newClips: Clip[] = moments.moments?.map((m: any, i: number) => ({
+      const newClips: Clip[] = (moments.moments || []).map((m: any, i: number) => ({
         id: i,
         keyword: m.type === 'lucu' ? 'momen ngakak' : m.type === 'kaget' ? 'adegan kaget' : 'epic moment',
         badge: m.type === 'kaget' ? '😱 KAGET' : m.type === 'lucu' ? '😂 LUCU' : '🔊 AUDIO',
@@ -658,227 +750,253 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
         intensityScore: Math.round(m.intensity || 0),
         kagetScore: Math.round(m.kaget || 0),
         lucuScore: Math.round(m.lucu || 0),
-        label: m.duration && m.duration <= 60 ? 'Shorts' : 'Video',
+        label: (m.duration || 0) <= 60 ? 'Shorts' : 'Video',
         komentar: 'Moment terdeteksi dari analisis audio',
         transkrip: 'Video telah dianalisis oleh UniversalClip',
-      })) || []
+      }))
 
-      setClips(newClips)
       if (newClips.length > 0) {
+        setRealClips(newClips)
         setSelectedClip(newClips[0])
         addToast(`Ditemukan ${newClips.length} moment!`, 'success')
       } else {
-        addToast('Tidak ada moment terdeteksi', 'info')
+        addToast('Tidak ada moment terdeteksi, pakai data contoh', 'info')
       }
     } catch (e) {
       addToast(`Error: ${String(e).slice(0, 60)}`, 'error')
     } finally {
-      setLoading(false)
+      setAnalyzing(false)
+      setProgress(0)
     }
   }
 
   const simulateDownload = (label: string) => {
+    setDownloading(true)
+    setProgress(0)
     addToast(`Memulai download ${label}...`, 'info')
-    addToast(`${label} berhasil didownload!`, 'success')
+    const interval = setInterval(() => {
+      setProgress(p => {
+        if (p >= 100) {
+          clearInterval(interval)
+          setDownloading(false)
+          addToast(`${label} berhasil didownload!`, 'success')
+          return 0
+        }
+        return p + 10
+      })
+    }, 200)
   }
-
-  const activeClip = selectedClip || displayClips[0]
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 20px' }}>
-      {/* STEP 1: Input Link */}
-      {!selectedClip && (
-        <div className="card-base" style={{ padding: 28, maxWidth: 720, margin: '0 auto' }}>
-          <h2 style={{ margin: '0 0 8px', fontSize: 20, fontWeight: 800, color: 'var(--foreground)' }}>🎬 Mulai Clip</h2>
-          <p style={{ margin: '0 0 20px', fontSize: 13, color: 'var(--muted-foreground)' }}>
-            Masukkan link YouTube, lalu klik analisis — UniversalClip akan mendeteksi momen viral otomatis.
-          </p>
+      <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 300px', gap: 16 }}>
 
-          <div style={{ marginBottom: 16 }}>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>YOUTUBE URL</label>
-            <input
-              type="text"
-              placeholder="https://www.youtube.com/watch?v=..."
-              value={youtubeUrl}
-              onChange={e => setYoutubeUrl(e.target.value)}
-              onKeyDown={e => { if (e.key === 'Enter') handleDownloadVideo() }}
-              style={{ width: '100%', padding: '12px' }}
-            />
+        {/* ── LEFT: Clip List ── */}
+        <div className="card-base" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+          <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            📋 Daftar Clip
+          </h3>
+
+          <input
+            type="text"
+            placeholder="🔍 Cari clip..."
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            style={{ width: '100%' }}
+          />
+
+          <select value={filter} onChange={e => setFilter(e.target.value)} style={{ width: '100%' }}>
+            {FILTER_OPTIONS.map(o => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            {filteredClips.map((clip, i) => (
+              <div
+                key={clip.id}
+                onClick={() => setSelectedClip(clip)}
+                style={{
+                  background: activeClip.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
+                  border: `1px solid ${activeClip.id === clip.id ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
+                  borderRadius: 10,
+                  padding: '10px 12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600 }}>#{i + 1}</span>
+                  <div style={{ display: 'flex', gap: 4 }}>
+                    <span className="pill" style={{ background: badgeColors[clip.badgeType], color: badgeTextColors[clip.badgeType], fontSize: 10 }}>
+                      {clip.badge}
+                    </span>
+                    <span className="pill" style={{ background: labelColors[clip.label], color: labelTextColors[clip.label], fontSize: 10 }}>
+                      {clip.label}
+                    </span>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--foreground)' }}>{clip.keyword}</div>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
+                  {formatTime(clip.start)} – {formatTime(clip.end)} · {duration(clip)}s
+                </div>
+              </div>
+            ))}
+            {filteredClips.length === 0 && (
+              <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13, padding: '24px 0' }}>
+                Tidak ada clip ditemukan
+              </div>
+            )}
           </div>
-
-          <button className="btn-primary glow-purple" onClick={handleDownloadVideo} disabled={loading} style={{ width: '100%', padding: '14px', fontSize: 14 }}>
-            {loading ? (
-              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
-                <div className="spinner" style={{ width: 16, height: 16 }} />
-                Menganalisis video...
-              </span>
-            ) : '⬇️ Analisis Video'}
-          </button>
         </div>
-      )}
 
-      {/* STEP 2: Editor */}
-      {selectedClip && (
-        <>
-          <button className="btn-secondary" onClick={() => setSelectedClip(null)} style={{ marginBottom: 16, padding: '8px 16px', fontSize: 13 }}>
-            ← Kembali Input Link
-          </button>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 300px', gap: 16 }}>
-            {/* LEFT: Daftar Clip */}
-            <div className="card-base" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
-              <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                📋 Daftar Clip
-              </h3>
-
-              <input type="text" placeholder="🔍 Cari clip..." value={search} onChange={e => setSearch(e.target.value)} style={{ width: '100%' }} />
-
-              <select value={filter} onChange={e => setFilter(e.target.value)} style={{ width: '100%' }}>
-                {FILTER_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-              </select>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {filteredClips.map((clip, i) => (
-                  <div
-                    key={clip.id}
-                    onClick={() => setSelectedClip(clip)}
-                    style={{
-                      background: activeClip?.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
-                      border: `1px solid ${activeClip?.id === clip.id ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
-                      borderRadius: 10,
-                      padding: '10px 12px',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
-                      <span style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600 }}>#{i + 1}</span>
-                      <div style={{ display: 'flex', gap: 4 }}>
-                        <span className="pill" style={{ background: badgeColors[clip.badgeType], color: badgeTextColors[clip.badgeType], fontSize: 10 }}>
-                          {clip.badge}
-                        </span>
-                        <span className="pill" style={{ background: labelColors[clip.label], color: labelTextColors[clip.label], fontSize: 10 }}>
-                          {clip.label}
-                        </span>
-                      </div>
-                    </div>
-                    <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 4, color: 'var(--foreground)' }}>{clip.keyword}</div>
-                    <div style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>
-                      {formatTime(clip.start)} – {formatTime(clip.end)} · {duration(clip)}s
-                    </div>
-                  </div>
-                ))}
-                {filteredClips.length === 0 && (
-                  <div style={{ textAlign: 'center', color: 'var(--muted-foreground)', fontSize: 13, padding: '24px 0' }}>
-                    Tidak ada clip ditemukan
-                  </div>
-                )}
+        {/* ── CENTER: Video Player ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          {/* Input YouTube */}
+          <div className="card-base" style={{ padding: 14 }}>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="text"
+                placeholder="🔗 Paste link YouTube lalu analisis..."
+                value={youtubeUrl}
+                onChange={e => setYoutubeUrl(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleAnalyze() }}
+                style={{ flex: 1 }}
+              />
+              <button
+                className="btn-primary"
+                onClick={handleAnalyze}
+                disabled={analyzing}
+                style={{ padding: '8px 20px', fontSize: 13, whiteSpace: 'nowrap' }}
+              >
+                {analyzing ? '⏳...' : 'Analisis'}
+              </button>
+            </div>
+            {downloading && (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                  <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>Mengunduh...</span>
+                  <span style={{ fontSize: 11, color: '#a855f7' }}>{progress}%</span>
+                </div>
+                <div className="progress-bar">
+                  <div className="progress-fill" style={{ width: `${progress}%` }} />
+                </div>
               </div>
+            )}
+          </div>
+
+          <div className="card-base" style={{ overflow: 'hidden' }}>
+            <div style={{ position: 'relative', background: '#000', borderRadius: '12px 12px 0 0' }}>
+              <iframe
+                src={`${vidId ? `https://www.youtube.com/embed/${vidId}` : YOUTUBE_URL}?start=${Math.round(activeClip.start)}&autoplay=0`}
+                title="Video Player"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+                style={{ width: '100%', height: '60vh', border: 'none', display: 'block' }}
+              />
             </div>
 
-            {/* CENTER: Video Player + Timeline */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              <div className="card-base" style={{ overflow: 'hidden' }}>
-                <div style={{ position: 'relative', background: '#000', borderRadius: '12px 12px 0 0' }}>
-                  {vidId ? (
-                    <iframe
-                      src={`https://www.youtube.com/embed/${vidId}?start=${Math.round(activeClip.start)}&autoplay=0`}
-                      title="Video Player"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                      allowFullScreen
-                      style={{ width: '100%', height: '60vh', border: 'none', display: 'block' }}
-                    />
-                  ) : (
-                    <div style={{ height: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
-                      <span style={{ fontSize: 48 }}>🎥</span>
-                      <span style={{ color: '#666', fontSize: 14 }}>Video Player</span>
-                    </div>
-                  )}
-                </div>
-
-                <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }}>⏪ 5s</button>
-                  <button className="btn-primary" style={{ padding: '7px 20px', fontSize: 13 }}>▶ Play</button>
-                  <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }}>⏩ 5s</button>
-                  <span style={{ fontSize: 12, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
-                    {formatTime(activeClip.start)} / {formatTime(activeClip.end)}
-                  </span>
-                </div>
-              </div>
-
-              <TimelineEditor clip={activeClip} />
+            {/* Controls */}
+            <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
+              <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }}>⏪ 5s</button>
+              <button className="btn-primary" style={{ padding: '7px 20px', fontSize: 13 }}>▶ Play</button>
+              <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }}>⏩ 5s</button>
+              <span style={{ fontSize: 12, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
+                {formatTime(activeClip.start)} / {formatTime(activeClip.end)}
+              </span>
             </div>
+          </div>
 
-            {/* RIGHT: Detail Clip */}
-            <div className="card-base" style={{ padding: 16, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
-              <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                📊 Detail Clip
-              </h3>
+          {/* Timeline Editor */}
+          <TimelineEditor clip={activeClip} />
+        </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-                {[
-                  { label: 'Start', val: formatTime(activeClip.start) },
-                  { label: 'End', val: formatTime(activeClip.end) },
-                  { label: 'Durasi', val: `${duration(activeClip)}s` },
-                ].map(r => (
-                  <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{r.label}</span>
-                    <span style={{ fontSize: 12, fontWeight: 600 }}>{r.val}</span>
-                  </div>
-                ))}
+        {/* ── RIGHT: Detail & Download ── */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+          {/* Detail */}
+          <div className="card-base" style={{ padding: 16 }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              📊 Detail Clip
+            </h3>
 
-                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-
-                {[
-                  { label: 'Intensity', val: activeClip.intensityScore, color: '#a855f7' },
-                  { label: 'Kaget Score', val: activeClip.kagetScore, color: '#f87171' },
-                  { label: 'Lucu Score', val: activeClip.lucuScore, color: '#fbbf24' },
-                ].map(s => (
-                  <div key={s.label}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                      <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{s.label}</span>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.val}</span>
-                    </div>
-                    <div className="progress-bar">
-                      <div className="progress-fill" style={{ width: `${s.val}%`, background: s.color }} />
-                    </div>
-                  </div>
-                ))}
-
-                <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
-
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Keyword</div>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#a855f7' }}>{activeClip.keyword}</div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              {[
+                { label: 'Start', val: formatTime(activeClip.start) },
+                { label: 'End', val: formatTime(activeClip.end) },
+                { label: 'Durasi', val: `${duration(activeClip)}s` },
+              ].map(r => (
+                <div key={r.label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{r.label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600 }}>{r.val}</span>
                 </div>
+              ))}
 
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Komentar Viral</div>
-                  <div style={{ fontSize: 11, color: 'var(--foreground)', fontStyle: 'italic', lineHeight: 1.5, background: 'var(--muted)', borderRadius: 8, padding: '8px 10px' }}>
-                    {activeClip.komentar}
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+              {/* Score bars */}
+              {[
+                { label: 'Intensity', val: activeClip.intensityScore, color: '#a855f7' },
+                { label: 'Kaget Score', val: activeClip.kagetScore, color: '#f87171' },
+                { label: 'Lucu Score', val: activeClip.lucuScore, color: '#fbbf24' },
+              ].map(s => (
+                <div key={s.label}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{s.label}</span>
+                    <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.val}</span>
+                  </div>
+                  <div className="progress-bar">
+                    <div className="progress-fill" style={{ width: `${s.val}%`, background: s.color }} />
                   </div>
                 </div>
+              ))}
 
-                <div>
-                  <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Transkrip</div>
-                  <div style={{ fontSize: 11, color: 'var(--foreground)', lineHeight: 1.6, background: 'var(--muted)', borderRadius: 8, padding: '8px 10px' }}>
-                    {activeClip.transkrip}
-                  </div>
+              <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Keyword</div>
+                <div style={{ fontSize: 12, fontWeight: 600, color: '#a855f7' }}>{activeClip.keyword}</div>
+              </div>
+
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Komentar Viral</div>
+                <div style={{ fontSize: 11, color: 'var(--foreground)', fontStyle: 'italic', lineHeight: 1.5, background: 'var(--muted)', borderRadius: 8, padding: '8px 10px' }}>
+                  {activeClip.komentar}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 16 }}>
-                <button className="btn-secondary" style={{ padding: '10px', fontSize: 13, width: '100%' }} onClick={() => addToast('Memulai preview clip...', 'info')}>
-                  ▶ Preview Clip
-                </button>
-                <button className="btn-primary glow-purple-sm" style={{ padding: '10px', fontSize: 13, width: '100%' }} onClick={() => simulateDownload(`Clip #${activeClip.id + 1}`)}>
-                  ⬇ Download Clip
-                </button>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--muted-foreground)', marginBottom: 4 }}>Transkrip</div>
+                <div style={{ fontSize: 11, color: 'var(--foreground)', lineHeight: 1.6, background: 'var(--muted)', borderRadius: 8, padding: '8px 10px' }}>
+                  {activeClip.transkrip}
+                </div>
               </div>
             </div>
           </div>
-        </>
-      )}
+
+          {/* Actions */}
+          <div className="card-base" style={{ padding: 16 }}>
+            <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+              ⚡ Aksi
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+              <button
+                className="btn-secondary"
+                style={{ padding: '10px', fontSize: 13, width: '100%' }}
+                onClick={() => addToast('Memulai preview clip...', 'info')}
+              >
+                ▶ Preview Clip
+              </button>
+              <button
+                className="btn-primary glow-purple-sm"
+                style={{ padding: '10px', fontSize: 13, width: '100%' }}
+                onClick={() => simulateDownload(`Clip #${activeClip.id + 1}`)}
+              >
+                ⬇ Download Clip
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }
@@ -898,16 +1016,14 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
     addToast('AI sedang menganalisis konten terbaik...', 'info')
     try {
       const data = await API.trending(kategori)
-      if (data.length > 0) {
-        setResults(data.slice(0, parseInt(jumlah)))
-        addToast('Riset konten berhasil digenerate!', 'success')
-      } else {
-        setResults(MOCK_IDE_KONTEN.slice(0, parseInt(jumlah)))
-        addToast('Riset konten berhasil digenerate! (data demo)', 'success')
-      }
+      const list = data.length > 0
+        ? data.slice(0, parseInt(jumlah))
+        : MOCK_IDE_KONTEN.slice(0, parseInt(jumlah))
+      setResults(list)
+      addToast(data.length > 0 ? 'Riset konten berhasil digenerate!' : 'Riset konten berhasil digenerate! (data contoh)', 'success')
     } catch (e) {
       setResults(MOCK_IDE_KONTEN.slice(0, parseInt(jumlah)))
-      addToast('Riset konten berhasil digenerate! (data demo)', 'success')
+      addToast('Riset konten berhasil digenerate! (data contoh)', 'success')
     } finally {
       setLoading(false)
     }
@@ -915,39 +1031,32 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
 
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-      {/* Header */}
-      <div style={{ textAlign: 'center', marginBottom: 8 }}>
-        <h1 style={{ margin: 0, fontSize: 24, fontWeight: 900 }}>💡 Riset Konten</h1>
-        <p style={{ margin: '8px 0 0', fontSize: 13, color: 'var(--muted-foreground)' }}>
-          Temukan ide viral dari trending YouTube, generate judul, keyword & hashtag
-        </p>
-      </div>
 
       {/* Step 1 */}
       <div className="card-base" style={{ padding: 28 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff' }}>1</div>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#a855f7' }}>PILIH KATEGORI & FILTER</h2>
+          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#a855f7' }}>💡 LANGKAH 1 — Pilih Kategori & Filter</h2>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 14, marginBottom: 16 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
           <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>KATEGORI</label>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Kategori</label>
             <select value={kategori} onChange={e => setKategori(e.target.value)} style={{ width: '100%' }}>
               {KATEGORI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>TARGET</label>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Target Audiens</label>
             <select value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%' }}>
-              <option value="indonesia">ID Indonesia 🇮🇩</option>
+              <option value="indonesia">Indonesia 🇮🇩</option>
               <option value="global">Global 🌍</option>
             </select>
           </div>
 
           <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>JUMLAH</label>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Jumlah Ide</label>
             <select value={jumlah} onChange={e => setJumlah(e.target.value)} style={{ width: '100%' }}>
               {['5', '10', '15', '20'].map(n => <option key={n} value={n}>{n} ide</option>)}
             </select>
@@ -956,18 +1065,23 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
 
         <div style={{ marginBottom: 18 }}>
           <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-            IDE SPESIFIK (OPSIONAL)
+            Ide Spesifik (Opsional)
           </label>
           <input
             type="text"
-            placeholder="Contoh: misteri laut dalam, game horror indie..."
+            placeholder="Contoh: konten tentang sejarah kuliner Indonesia..."
             value={ide}
             onChange={e => setIde(e.target.value)}
             style={{ width: '100%' }}
           />
         </div>
 
-        <button className="btn-primary glow-purple" onClick={generate} disabled={loading} style={{ padding: '12px 32px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 }}>
+        <button
+          className="btn-primary glow-purple"
+          onClick={generate}
+          disabled={loading}
+          style={{ padding: '12px 32px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 }}
+        >
           {loading ? (
             <>
               <div className="spinner" style={{ width: 16, height: 16 }} />
@@ -1021,7 +1135,11 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
                     {ideKonten.format === 'Short' ? '📱 Short' : '🎬 Normal'}
                   </span>
                 </div>
-                <button className="btn-secondary" style={{ padding: '5px 14px', fontSize: 11 }} onClick={() => addToast(`Ide "${ideKonten.judul.slice(0, 30)}..." disimpan!`, 'success')}>
+                <button
+                  className="btn-secondary"
+                  style={{ padding: '5px 14px', fontSize: 11 }}
+                  onClick={() => addToast(`Ide "${ideKonten.judul.slice(0, 30)}..." disimpan!`, 'success')}
+                >
                   💾 Simpan
                 </button>
               </div>
@@ -1039,6 +1157,7 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
                 {ideKonten.deskripsi}
               </p>
 
+              {/* Hashtags */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {ideKonten.hashtags.map(h => (
                   <span key={h} className="pill" style={{ background: 'rgba(124,58,237,0.1)', color: '#a855f7', border: '1px solid rgba(124,58,237,0.2)', fontSize: 11 }}>
@@ -1047,9 +1166,15 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
                 ))}
               </div>
 
+              {/* Source */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>🔗 Sumber:</span>
-                <a href={`https://${ideKonten.sumber}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#60a5fa', textDecoration: 'none' }}>
+                <a
+                  href={`https://${ideKonten.sumber}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ fontSize: 11, color: '#60a5fa', textDecoration: 'none' }}
+                >
                   {ideKonten.sumber}
                 </a>
               </div>
