@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-type Tab = 'home' | 'clip' | 'riset'
+type Tab = 'home' | 'clip'
 type ToastType = 'success' | 'error' | 'info'
 
 interface Toast {
@@ -24,16 +24,6 @@ interface Clip {
   label: 'Shorts' | 'Reels' | 'Video'
   komentar: string
   transkrip: string
-}
-
-interface IdeKonten {
-  id: number
-  format: 'Short' | 'Normal'
-  judul: string
-  keyword: string
-  deskripsi: string
-  hashtags: string[]
-  sumber: string
 }
 
 // YouTube IFrame API global
@@ -119,54 +109,6 @@ const MOCK_CLIPS: Clip[] = [
   },
 ]
 
-const MOCK_IDE_KONTEN: IdeKonten[] = [
-  {
-    id: 1,
-    format: 'Short',
-    judul: '10 Jumpscare Anime yang Bikin Jantungan — Dijamin Kaget!',
-    keyword: 'jumpscare anime kaget',
-    deskripsi: 'Kompilasi momen paling mengejutkan di anime populer 2024, dikurasi berdasarkan reaksi penonton paling viral.',
-    hashtags: ['#anime', '#jumpscare', '#viral', '#shorts', '#animeindonesia'],
-    sumber: 'youtube.com/watch?v=dQw4w9WgXcQ',
-  },
-  {
-    id: 2,
-    format: 'Normal',
-    judul: 'Sejarah Perang Diponegoro yang Tidak Diajarkan di Sekolah',
-    keyword: 'sejarah indonesia tersembunyi',
-    deskripsi: 'Fakta-fakta mengejutkan tentang Perang Diponegoro yang jarang dibahas, dari sumber primer dan arsip kolonial Belanda.',
-    hashtags: ['#sejarahindonesia', '#diponegoro', '#faktalucu', '#edukasi'],
-    sumber: 'youtube.com/watch?v=abc123def',
-  },
-  {
-    id: 3,
-    format: 'Short',
-    judul: 'Momen Ngakak Gaming yang Bikin Viewers Nggak Bisa Berhenti Ketawa',
-    keyword: 'gaming lucu fail indonesia',
-    deskripsi: 'Clip gaming paling kocak minggu ini dari streamer Indonesia — cocok untuk dijadikan konten Shorts harian.',
-    hashtags: ['#gaming', '#streamerindonesia', '#ngakak', '#gamingfails', '#shorts'],
-    sumber: 'youtube.com/watch?v=xyz789',
-  },
-  {
-    id: 4,
-    format: 'Normal',
-    judul: 'Kenapa Anime One Piece Masih Relevan Setelah 25 Tahun?',
-    keyword: 'one piece analisis mendalam',
-    deskripsi: 'Analisis mendalam tentang formula storytelling Oda yang mempertahankan jutaan penonton global selama lebih dari dua dekade.',
-    hashtags: ['#onepiece', '#anime', '#analisis', '#mangavsanime'],
-    sumber: 'youtube.com/watch?v=onepiece25',
-  },
-  {
-    id: 5,
-    format: 'Short',
-    judul: 'Berita Hari Ini yang Bikin Warganet Heboh — Recap 60 Detik',
-    keyword: 'berita viral hari ini',
-    deskripsi: 'Rangkuman berita trending hari ini dalam format 60 detik, cocok untuk penonton yang sibuk.',
-    hashtags: ['#berita', '#viral', '#infoterkini', '#shorts', '#newsindonesia'],
-    sumber: 'youtube.com/watch?v=beritaviral',
-  },
-]
-
 const FILTER_OPTIONS = [
   { value: 'all', label: 'Semua Filter' },
   { value: 'audio', label: '🔊 Audio Peak' },
@@ -174,21 +116,6 @@ const FILTER_OPTIONS = [
   { value: 'kaget', label: '😱 Adegan Kaget' },
   { value: 'komentar', label: '💬 Komentar' },
   { value: 'pendek', label: '⏱ Pendek' },
-]
-
-const KATEGORI_OPTIONS = [
-  { value: 'gaming', label: 'Gaming 🎮' },
-  { value: 'berita', label: 'Berita 📰' },
-  { value: 'anime', label: 'Anime ⚔️' },
-  { value: 'cerita', label: 'Cerita 📖' },
-  { value: 'sejarah', label: 'Sejarah 🏛️' },
-  { value: 'lucu', label: 'Video Lucu 😂' },
-]
-
-const TOP_KEYWORDS = [
-  'viral 2025', 'jumpscare gaming', 'epic moment', 'fail compilation',
-  'review jujur', 'behind the scene', 'reaction terbaik', 'top 10 indonesia',
-  'drama korea', 'tutorial viral',
 ]
 
 // ─── Utils ────────────────────────────────────────────────────────────────────
@@ -203,34 +130,15 @@ function duration(clip: Clip): number {
   return Math.round(clip.end - clip.start)
 }
 
-// ─── API (wiring backend, fallback ke mock kalau gagal) ──────────────────────
+function labelFor(dur: number): Clip['label'] {
+  if (dur <= 15) return 'Shorts'
+  if (dur <= 60) return 'Reels'
+  return 'Video'
+}
+
+// ─── API ──────────────────────────────────────────────────────────────────────
 
 const API = {
-  async trending(category: string): Promise<IdeKonten[]> {
-    try {
-      const res = await fetch('/api/trending', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ category }),
-      })
-      if (!res.ok) throw new Error('API error')
-      const data = await res.json()
-      const videos = data.videos || []
-      if (videos.length === 0) return []
-      return videos.map((v: any, i: number) => ({
-        id: i,
-        format: i % 2 === 0 ? 'Short' : 'Normal',
-        judul: v.title || 'Untitled',
-        keyword: category,
-        deskripsi: v.description || 'Video trending dari YouTube',
-        hashtags: ['#viral', `#${category}`, '#youtube', '#shorts', '#trending'],
-        sumber: `youtube.com/watch?v=${v.id}`,
-      }))
-    } catch (e) {
-      console.error('Trending API error:', e)
-      return []
-    }
-  },
   async downloadAudio(url: string): Promise<any> {
     const res = await fetch('/api/download-audio', {
       method: 'POST',
@@ -317,7 +225,6 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
   const tabs: { id: Tab; label: string }[] = [
     { id: 'home', label: '🏠 Home' },
     { id: 'clip', label: '🎬 Clip' },
-    { id: 'riset', label: '💡 Riset Konten' },
   ]
 
   return (
@@ -422,9 +329,6 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           <button className="btn-primary glow-purple" onClick={() => setActiveTab('clip')} style={{ padding: '16px 36px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
             🎬 Mulai Clip
           </button>
-          <button className="btn-secondary" onClick={() => setActiveTab('riset')} style={{ padding: '16px 36px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
-            💡 Riset Konten
-          </button>
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 64 }}>
@@ -471,9 +375,10 @@ interface TimelineProps {
   onTogglePlay: () => void
   onSeek: (t: number) => void  // detik absolut
   onReset: () => void
+  onSplit: () => void
 }
 
-function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onReset }: TimelineProps) {
+function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onReset, onSplit }: TimelineProps) {
   const clipDur = Math.max(1, clip.end - clip.start)
   const trackRef = useRef<HTMLDivElement>(null)
 
@@ -482,13 +387,11 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
   const [hoveredHandle, setHoveredHandle] = useState<'left' | 'right' | null>(null)
   const dragging = useRef<'left' | 'right' | null>(null)
 
-  // Reset trim saat ganti clip
   useEffect(() => {
     setTrimStart(0)
     setTrimEnd(100)
   }, [clip.id])
 
-  // Playhead mengikuti currentTime dari player
   const playheadPct = Math.max(0, Math.min(100, ((currentTime - clip.start) / clipDur) * 100))
 
   const getPct = (e: MouseEvent | React.MouseEvent) => {
@@ -516,7 +419,6 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
     window.addEventListener('mouseup', onUp)
   }
 
-  // Klik track → seek player ke titik itu
   const onTrackClick = (e: React.MouseEvent) => {
     if (dragging.current) return
     const pct = getPct(e)
@@ -552,10 +454,18 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
         >
           {playing ? '⏸ Pause' : '▶ Play'}
         </button>
-        {/* ponytail: Split bikin clip baru butuh logika slice — nanti kalau mau */}
         <button
-          style={{ background: 'none', border: '1px solid #252538', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#e8e8ef', cursor: 'pointer', fontFamily: 'inherit' }}
-          onClick={() => {}}
+          onClick={onSplit}
+          style={{
+            background: 'rgba(124,58,237,0.15)',
+            border: '1px solid #252538',
+            borderRadius: 6,
+            padding: '3px 10px',
+            fontSize: 11,
+            color: '#a855f7',
+            cursor: 'pointer',
+            fontFamily: 'inherit',
+          }}
         >
           ✂ Split
         </button>
@@ -668,18 +578,21 @@ function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onRe
   )
 }
 
-// ─── Clip Editor ──────────────────────────────────────────────────────────────
+// ─── Clip Editor (2 fase: input link → editor) ────────────────────────────────
 
 function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => void }) {
+  const [phase, setPhase] = useState<'input' | 'editor'>('input')
+  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [statusText, setStatusText] = useState('')
+  const [progress, setProgress] = useState(0)
+  const [busy, setBusy] = useState(false)
+
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
-  const [selectedClip, setSelectedClip] = useState<Clip>(MOCK_CLIPS[0])
-  const [progress, setProgress] = useState(0)
-  const [downloading, setDownloading] = useState(false)
-  const [youtubeUrl, setYoutubeUrl] = useState('')
+  const [clips, setClips] = useState<Clip[]>([])
+  const [selectedId, setSelectedId] = useState<number | null>(null)
+
   const [vidId, setVidId] = useState('')
-  const [analyzing, setAnalyzing] = useState(false)
-  const [realClips, setRealClips] = useState<Clip[]>([])
   const [playing, setPlaying] = useState(false)
   const [currentTime, setCurrentTime] = useState(0)
 
@@ -687,9 +600,9 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const playerRef = useRef<any>(null)
   const playerReadyRef = useRef(false)
   const pendingSeekRef = useRef<number | null>(null)
+  const nextIdRef = useRef(1000)
 
-  const clips = realClips.length > 0 ? realClips : MOCK_CLIPS
-  const activeClip = clips.find(c => c.id === selectedClip.id) || clips[0]
+  const activeClip = clips.find(c => c.id === selectedId) || null
 
   // ── YouTube IFrame API: buat player sekali per vidId ──
   useEffect(() => {
@@ -730,7 +643,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
   // ── Ganti clip → seek tanpa reload iframe ──
   useEffect(() => {
-    if (!vidId) return
+    if (!vidId || !activeClip) return
     const t = activeClip.start
     setCurrentTime(t)
     if (playerReadyRef.current && playerRef.current?.seekTo) {
@@ -738,7 +651,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     } else {
       pendingSeekRef.current = t
     }
-  }, [activeClip.id, vidId])
+  }, [activeClip?.id, vidId])
 
   // ── Polling posisi player ──
   useEffect(() => {
@@ -752,11 +665,146 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     return () => clearInterval(id)
   }, [playing])
 
-  const filteredClips = clips.filter(c => {
-    const matchSearch = c.keyword.toLowerCase().includes(search.toLowerCase())
-    const matchFilter = filter === 'all' || c.badgeType === filter || (filter === 'pendek' && duration(c) <= 30)
-    return matchSearch && matchFilter
-  })
+  // ── Analisis: progress 0→100 + status text ──
+  const handleAnalyze = async () => {
+    const url = youtubeUrl.trim()
+    if (!url) {
+      addToast('Masukkan URL YouTube terlebih dahulu', 'error')
+      return
+    }
+    setBusy(true)
+    setProgress(0)
+    setStatusText('Memulai download audio...')
+    addToast('Memulai download audio...', 'info')
+
+    // Progress simulasi: request asli gak streaming, jadi animasi 0→90
+    let prog = 0
+    const tick = setInterval(() => {
+      prog = Math.min(90, prog + Math.random() * 4 + 1)
+      setProgress(Math.round(prog))
+    }, 400)
+
+    try {
+      const data = await API.downloadAudio(url)
+      setVidId(data.vid_id)
+      setStatusText('Menganalisis audio, mencari momen viral...')
+
+      const moments = await API.analyze(data.filename, data.vid_id)
+      setStatusText('Mengambil subtitle...')
+
+      const rawMoments: any[] = moments.clips || []
+      const newClips: Clip[] = rawMoments.map((m: any, i: number) => {
+        const isKaget = !!m.tag_kaget
+        const isLucu = (m.lucu_score || 0) >= 5
+        const dur = Math.round((m.end || 0) - (m.start || 0))
+        return {
+          id: i,
+          keyword: 'Moment terdeteksi',
+          badge: isKaget ? '😱 KAGET' : isLucu ? '😂 LUCU' : '🔊 AUDIO',
+          badgeType: isKaget ? 'kaget' : isLucu ? 'lucu' : 'audio',
+          start: Math.round(m.start),
+          end: Math.round(m.end),
+          intensityScore: Math.round((m.intensity || 0) * 100),
+          kagetScore: Math.round((m.kaget_score || 0) * 10),
+          lucuScore: Math.round((m.lucu_score || 0) * 10),
+          label: labelFor(dur),
+          komentar: 'Moment terdeteksi dari analisis audio',
+          transkrip: 'Video telah dianalisis oleh UniversalClip',
+        }
+      })
+
+      if (newClips.length > 0) {
+        // Keyword dari subtitle (omongan asli)
+        try {
+          const subRes = await API.subtitles(data.vid_id, rawMoments.map((m: any) => ({ start: m.start, end: m.end })))
+          const subClips: any[] = subRes.clips || []
+          if (subClips.length === newClips.length) {
+            subClips.forEach((sc: any, i: number) => {
+              if (sc.keyword) newClips[i].keyword = sc.keyword
+              if (sc.transcript) newClips[i].transkrip = sc.transcript
+            })
+          }
+        } catch (e) {
+          console.error('Subtitles error:', e)
+        }
+
+        nextIdRef.current = newClips.length
+        setClips(newClips)
+        setSelectedId(newClips[0].id)
+        clearInterval(tick)
+        setProgress(100)
+        setTimeout(() => {
+          setBusy(false)
+          setPhase('editor')
+          setStatusText('')
+          addToast(`Ditemukan ${newClips.length} moment!`, 'success')
+        }, 400)
+      } else {
+        clearInterval(tick)
+        setBusy(false)
+        setPhase('input')
+        setStatusText('')
+        addToast('Tidak ada moment terdeteksi, coba video lain', 'info')
+      }
+    } catch (e) {
+      clearInterval(tick)
+      setBusy(false)
+      setStatusText('')
+      addToast(`Error: ${String(e).slice(0, 60)}`, 'error')
+    }
+  }
+
+  // ── Kontrol player ──
+  const togglePlay = () => {
+    const p = playerRef.current
+    if (!p || !activeClip) return
+    if (playing) {
+      p.pauseVideo()
+    } else {
+      if (currentTime < activeClip.start || currentTime > activeClip.end) {
+        p.seekTo(activeClip.start, true)
+      }
+      p.playVideo()
+    }
+  }
+
+  const seekTo = (t: number) => {
+    const p = playerRef.current
+    setCurrentTime(t)
+    if (p && playerReadyRef.current) p.seekTo(t, true)
+    else pendingSeekRef.current = t
+  }
+
+  const resetPlayback = () => {
+    if (!activeClip) return
+    seekTo(activeClip.start)
+    const p = playerRef.current
+    if (p) p.pauseVideo()
+  }
+
+  // ── Split: potong clip aktif di posisi playhead ──
+  const handleSplit = () => {
+    if (!activeClip) return
+    const t = Math.round(currentTime)
+    if (t <= activeClip.start + 1 || t >= activeClip.end - 1) {
+      addToast('Geser playhead dulu ke tengah clip', 'error')
+      return
+    }
+    const left: Clip = { ...activeClip, end: t, label: labelFor(t - activeClip.start) }
+    const right: Clip = {
+      ...activeClip,
+      id: nextIdRef.current++,
+      start: t,
+      label: labelFor(activeClip.end - t),
+    }
+    const idx = clips.findIndex(c => c.id === activeClip.id)
+    const next = [...clips]
+    next.splice(idx, 1, left, right)
+    setClips(next)
+    setSelectedId(right.id)
+    seekTo(t)
+    addToast('Clip di-split jadi 2!', 'success')
+  }
 
   const badgeColors: Record<string, string> = {
     kaget: 'rgba(239,68,68,0.2)',
@@ -782,119 +830,91 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
     Video: '#a855f7',
   }
 
-  const handleAnalyze = async () => {
-    if (!youtubeUrl.trim()) {
-      addToast('Masukkan URL YouTube terlebih dahulu', 'error')
-      return
-    }
-    setAnalyzing(true)
-    addToast('Memulai download audio...', 'info')
-    try {
-      const data = await API.downloadAudio(youtubeUrl)
-      setVidId(data.vid_id)
-      addToast('Menganalisis audio, ini agak lama...', 'info')
-      const moments = await API.analyze(data.filename, data.vid_id)
+  // ── FASE 1: Input Link + Progress ──
+  if (phase === 'input') {
+    return (
+      <div style={{ maxWidth: 720, margin: '0 auto', padding: '80px 20px' }}>
+        <div className="card-base fade-in" style={{ padding: 32 }}>
+          <div style={{ textAlign: 'center', marginBottom: 24 }}>
+            <div style={{ fontSize: 44, marginBottom: 12 }}>🎬</div>
+            <h2 style={{ margin: '0 0 6px', fontSize: 22, fontWeight: 800 }}>Mulai Clip</h2>
+            <p style={{ margin: 0, fontSize: 13, color: 'var(--muted-foreground)' }}>
+              Masukkan link YouTube, UniversalClip akan otomatis mendeteksi momen viral-nya
+            </p>
+          </div>
 
-      // Server return key "clips" (max 20)
-      const rawMoments: any[] = moments.clips || []
-      const newClips: Clip[] = rawMoments.map((m: any, i: number) => {
-        const isKaget = !!m.tag_kaget
-        const isLucu = (m.lucu_score || 0) >= 5
-        return {
-          id: i,
-          keyword: isLucu ? 'momen ngakak' : isKaget ? 'adegan kaget' : 'epic moment',
-          badge: isKaget ? '😱 KAGET' : isLucu ? '😂 LUCU' : '🔊 AUDIO',
-          badgeType: isKaget ? 'kaget' : isLucu ? 'lucu' : 'audio',
-          start: Math.round(m.start),
-          end: Math.round(m.end),
-          intensityScore: Math.round((m.intensity || 0) * 100),
-          kagetScore: Math.round((m.kaget_score || 0) * 10),
-          lucuScore: Math.round((m.lucu_score || 0) * 10),
-          label: m.label === 'Reels' ? 'Reels' : m.label === 'Video' ? 'Video' : 'Shorts',
-          komentar: 'Moment terdeteksi dari analisis audio',
-          transkrip: 'Video telah dianalisis oleh UniversalClip',
-        }
-      })
+          <div style={{ marginBottom: 16 }}>
+            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
+              LINK YOUTUBE
+            </label>
+            <input
+              type="text"
+              placeholder="https://www.youtube.com/watch?v=..."
+              value={youtubeUrl}
+              onChange={e => setYoutubeUrl(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleAnalyze() }}
+              disabled={busy}
+              style={{ width: '100%', padding: '13px 14px', fontSize: 14 }}
+            />
+          </div>
 
-      // Ambil subtitle → keyword & transkrip kontekstual per clip
-      if (newClips.length > 0) {
-        try {
-          const subRes = await API.subtitles(data.vid_id, rawMoments.map((m: any, i: number) => ({ id: i, start: m.start, end: m.end })))
-          const subClips: any[] = subRes.clips || []
-          if (subClips.length === newClips.length) {
-            subClips.forEach((sc: any, i: number) => {
-              if (sc.keyword) newClips[i].keyword = sc.keyword
-              if (sc.transcript) newClips[i].transkrip = sc.transcript
-            })
-          }
-        } catch (e) {
-          console.error('Subtitles error:', e)
-        }
-      }
+          <button
+            className="btn-primary glow-purple"
+            onClick={handleAnalyze}
+            disabled={busy}
+            style={{ width: '100%', padding: '14px', fontSize: 14 }}
+          >
+            {busy ? (
+              <span style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                <div className="spinner" style={{ width: 16, height: 16 }} />
+                {statusText}
+              </span>
+            ) : '⬇️ Analisis Video'}
+          </button>
 
-      if (newClips.length > 0) {
-        setRealClips(newClips)
-        setSelectedClip(newClips[0])
-        addToast(`Ditemukan ${newClips.length} moment!`, 'success')
-      } else {
-        addToast('Tidak ada moment terdeteksi, pakai data contoh', 'info')
-      }
-    } catch (e) {
-      addToast(`Error: ${String(e).slice(0, 60)}`, 'error')
-    } finally {
-      setAnalyzing(false)
-    }
+          {/* Progress bar 0→100 */}
+          {busy && (
+            <div style={{ marginTop: 20 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>{statusText}</span>
+                <span style={{ fontSize: 11, fontWeight: 700, color: '#a855f7' }}>{progress}%</span>
+              </div>
+              <div className="progress-bar" style={{ height: 8 }}>
+                <div className="progress-fill" style={{ width: `${progress}%`, transition: 'width 0.3s ease' }} />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    )
   }
 
-  const togglePlay = () => {
-    const p = playerRef.current
-    if (!p) return
-    if (playing) {
-      p.pauseVideo()
-    } else {
-      if (currentTime < activeClip.start || currentTime > activeClip.end) {
-        p.seekTo(activeClip.start, true)
-      }
-      p.playVideo()
-    }
-  }
+  // ── FASE 2: Editor ──
+  if (!activeClip) return null
 
-  const seekTo = (t: number) => {
-    const p = playerRef.current
-    setCurrentTime(t)
-    if (p && playerReadyRef.current) p.seekTo(t, true)
-    else pendingSeekRef.current = t
-  }
-
-  const resetPlayback = () => {
-    seekTo(activeClip.start)
-    const p = playerRef.current
-    if (p) p.pauseVideo()
-  }
-
-  const simulateDownload = (label: string) => {
-    setDownloading(true)
-    setProgress(0)
-    addToast(`Memulai download ${label}...`, 'info')
-    const interval = setInterval(() => {
-      setProgress(p => {
-        if (p >= 100) {
-          clearInterval(interval)
-          setDownloading(false)
-          addToast(`${label} berhasil didownload!`, 'success')
-          return 0
-        }
-        return p + 10
-      })
-    }, 200)
-  }
+  const filteredClips = clips.filter(c => {
+    const matchSearch = c.keyword.toLowerCase().includes(search.toLowerCase())
+    const matchFilter = filter === 'all' || c.badgeType === filter || (filter === 'pendek' && duration(c) <= 30)
+    return matchSearch && matchFilter
+  })
 
   return (
     <div style={{ maxWidth: 1400, margin: '0 auto', padding: '24px 20px' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+        <button
+          className="btn-secondary"
+          onClick={() => { setPhase('input'); setClips([]); setSelectedId(null); setVidId('') }}
+          style={{ padding: '8px 16px', fontSize: 13 }}
+        >
+          ← Input Link Baru
+        </button>
+        <span style={{ fontSize: 12, color: 'var(--muted-foreground)' }}>{clips.length} clip terdeteksi</span>
+      </div>
+
       <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr 300px', gap: 16 }}>
 
         {/* ── LEFT: Clip List ── */}
-        <div className="card-base" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+        <div className="card-base" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 140px)', overflowY: 'auto' }}>
           <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             📋 Daftar Clip <span style={{ color: '#a855f7', fontWeight: 700 }}>({clips.length})</span>
           </h3>
@@ -917,7 +937,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             {filteredClips.map((clip, i) => (
               <div
                 key={clip.id}
-                onClick={() => setSelectedClip(clip)}
+                onClick={() => setSelectedId(clip.id)}
                 style={{
                   background: activeClip.id === clip.id ? 'rgba(124,58,237,0.12)' : 'var(--muted)',
                   border: `1px solid ${activeClip.id === clip.id ? 'rgba(124,58,237,0.4)' : 'var(--border)'}`,
@@ -952,50 +972,11 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           </div>
         </div>
 
-        {/* ── CENTER: Video Player ── */}
+        {/* ── CENTER: Video Player + Timeline ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div className="card-base" style={{ padding: 14 }}>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <input
-                type="text"
-                placeholder="🔗 Paste link YouTube lalu analisis..."
-                value={youtubeUrl}
-                onChange={e => setYoutubeUrl(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleAnalyze() }}
-                style={{ flex: 1 }}
-              />
-              <button
-                className="btn-primary"
-                onClick={handleAnalyze}
-                disabled={analyzing}
-                style={{ padding: '8px 20px', fontSize: 13, whiteSpace: 'nowrap' }}
-              >
-                {analyzing ? '⏳...' : 'Analisis'}
-              </button>
-            </div>
-            {downloading && (
-              <div style={{ marginTop: 10 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                  <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>Mengunduh...</span>
-                  <span style={{ fontSize: 11, color: '#a855f7' }}>{progress}%</span>
-                </div>
-                <div className="progress-bar">
-                  <div className="progress-fill" style={{ width: `${progress}%` }} />
-                </div>
-              </div>
-            )}
-          </div>
-
           <div className="card-base" style={{ overflow: 'hidden' }}>
             <div style={{ position: 'relative', background: '#000', borderRadius: '12px 12px 0 0' }}>
-              {vidId ? (
-                <div ref={playerHostRef} style={{ width: '100%', aspectRatio: '16/9' }} />
-              ) : (
-                <div style={{ height: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
-                  <span style={{ fontSize: 48 }}>🎥</span>
-                  <span style={{ color: '#666', fontSize: 14 }}>Analisis video dulu untuk tampilkan player</span>
-                </div>
-              )}
+              <div ref={playerHostRef} style={{ width: '100%', aspectRatio: '16/9' }} />
             </div>
 
             <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -1017,11 +998,12 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             onTogglePlay={togglePlay}
             onSeek={seekTo}
             onReset={resetPlayback}
+            onSplit={handleSplit}
           />
         </div>
 
         {/* ── RIGHT: Detail & Download ── */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 140px)', overflowY: 'auto' }}>
           <div className="card-base" style={{ padding: 16 }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               📊 Detail Clip
@@ -1095,7 +1077,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               <button
                 className="btn-primary glow-purple-sm"
                 style={{ padding: '10px', fontSize: 13, width: '100%' }}
-                onClick={() => simulateDownload(`Clip #${activeClip.id + 1}`)}
+                onClick={() => addToast('Download clip belum tersedia', 'info')}
               >
                 ⬇ Download Clip
               </button>
@@ -1103,186 +1085,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           </div>
         </div>
       </div>
-    </div>
-  )
-}
-
-// ─── Riset Konten ─────────────────────────────────────────────────────────────
-
-function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) => void }) {
-  const [kategori, setKategori] = useState('gaming')
-  const [target, setTarget] = useState('indonesia')
-  const [jumlah, setJumlah] = useState('5')
-  const [ide, setIde] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [results, setResults] = useState<IdeKonten[]>([])
-
-  const generate = async () => {
-    setLoading(true)
-    addToast('AI sedang menganalisis konten terbaik...', 'info')
-    try {
-      const data = await API.trending(kategori)
-      const list = data.length > 0
-        ? data.slice(0, parseInt(jumlah))
-        : MOCK_IDE_KONTEN.slice(0, parseInt(jumlah))
-      setResults(list)
-      addToast(data.length > 0 ? 'Riset konten berhasil digenerate!' : 'Riset konten berhasil digenerate! (data contoh)', 'success')
-    } catch (e) {
-      setResults(MOCK_IDE_KONTEN.slice(0, parseInt(jumlah)))
-      addToast('Riset konten berhasil digenerate! (data contoh)', 'success')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  return (
-    <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: 24 }}>
-
-      <div className="card-base" style={{ padding: 28 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
-          <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff' }}>1</div>
-          <h2 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#a855f7' }}>💡 LANGKAH 1 — Pilih Kategori & Filter</h2>
-        </div>
-
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: 14, marginBottom: 16 }}>
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Kategori</label>
-            <select value={kategori} onChange={e => setKategori(e.target.value)} style={{ width: '100%' }}>
-              {KATEGORI_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Target Audiens</label>
-            <select value={target} onChange={e => setTarget(e.target.value)} style={{ width: '100%' }}>
-              <option value="indonesia">Indonesia 🇮🇩</option>
-              <option value="global">Global 🌍</option>
-            </select>
-          </div>
-
-          <div>
-            <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>Jumlah Ide</label>
-            <select value={jumlah} onChange={e => setJumlah(e.target.value)} style={{ width: '100%' }}>
-              {['5', '10', '15', '20'].map(n => <option key={n} value={n}>{n} ide</option>)}
-            </select>
-          </div>
-        </div>
-
-        <div style={{ marginBottom: 18 }}>
-          <label style={{ fontSize: 11, color: 'var(--muted-foreground)', fontWeight: 600, display: 'block', marginBottom: 6 }}>
-            Ide Spesifik (Opsional)
-          </label>
-          <input
-            type="text"
-            placeholder="Contoh: konten tentang sejarah kuliner Indonesia..."
-            value={ide}
-            onChange={e => setIde(e.target.value)}
-            style={{ width: '100%' }}
-          />
-        </div>
-
-        <button
-          className="btn-primary glow-purple"
-          onClick={generate}
-          disabled={loading}
-          style={{ padding: '12px 32px', fontSize: 14, display: 'flex', alignItems: 'center', gap: 10 }}
-        >
-          {loading ? (
-            <>
-              <div className="spinner" style={{ width: 16, height: 16 }} />
-              Menganalisis dengan AI...
-            </>
-          ) : (
-            '✨ Generate Riset Konten'
-          )}
-        </button>
-      </div>
-
-      {results.length > 0 && (
-        <div className="card-base fade-in" style={{ padding: 24 }}>
-          <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            🔥 Top Keywords
-          </h3>
-          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-            {TOP_KEYWORDS.map((kw, i) => (
-              <span
-                key={kw}
-                className="pill"
-                style={{
-                  background: i < 3 ? 'rgba(124,58,237,0.2)' : 'var(--muted)',
-                  color: i < 3 ? '#a855f7' : 'var(--muted-foreground)',
-                  border: `1px solid ${i < 3 ? 'rgba(124,58,237,0.3)' : 'var(--border)'}`,
-                  padding: '5px 14px',
-                  fontSize: 12,
-                }}
-              >
-                {i < 3 && '🔥 '}{kw}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {results.length > 0 && (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {results.map((ideKonten, i) => (
-            <div key={ideKonten.id} className="card-base fade-in" style={{ padding: 24 }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 14 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontSize: 12, color: 'var(--muted-foreground)', fontWeight: 600 }}>#{i + 1}</span>
-                  <span className="pill" style={{
-                    background: ideKonten.format === 'Short' ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)',
-                    color: ideKonten.format === 'Short' ? '#f87171' : '#a855f7',
-                    fontSize: 11,
-                  }}>
-                    {ideKonten.format === 'Short' ? '📱 Short' : '🎬 Normal'}
-                  </span>
-                </div>
-                <button
-                  className="btn-secondary"
-                  style={{ padding: '5px 14px', fontSize: 11 }}
-                  onClick={() => addToast(`Ide "${ideKonten.judul.slice(0, 30)}..." disimpan!`, 'success')}
-                >
-                  💾 Simpan
-                </button>
-              </div>
-
-              <h3 style={{ margin: '0 0 10px', fontSize: 16, fontWeight: 700, lineHeight: 1.4, color: 'var(--foreground)' }}>
-                {ideKonten.judul}
-              </h3>
-
-              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>🔑 Keyword:</span>
-                <span style={{ fontSize: 11, color: '#a855f7', fontWeight: 600 }}>{ideKonten.keyword}</span>
-              </div>
-
-              <p style={{ margin: '0 0 12px', fontSize: 13, color: 'var(--muted-foreground)', lineHeight: 1.6 }}>
-                {ideKonten.deskripsi}
-              </p>
-
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
-                {ideKonten.hashtags.map(h => (
-                  <span key={h} className="pill" style={{ background: 'rgba(124,58,237,0.1)', color: '#a855f7', border: '1px solid rgba(124,58,237,0.2)', fontSize: 11 }}>
-                    {h}
-                  </span>
-                ))}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>🔗 Sumber:</span>
-                <a
-                  href={`https://${ideKonten.sumber}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: 11, color: '#60a5fa', textDecoration: 'none' }}
-                >
-                  {ideKonten.sumber}
-                </a>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
     </div>
   )
 }
@@ -1316,7 +1118,6 @@ export default function App() {
       <main>
         {activeTab === 'home' && <HomePage setActiveTab={setActiveTab} />}
         {activeTab === 'clip' && <ClipEditor addToast={addToast} />}
-        {activeTab === 'riset' && <RisetKonten addToast={addToast} />}
       </main>
 
       <ToastContainer toasts={toasts} onDismiss={dismissToast} />
