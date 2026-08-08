@@ -249,6 +249,15 @@ const API = {
     if (!res.ok) throw new Error('Analisis gagal')
     return res.json()
   },
+  async subtitles(vid_id: string, clips: any[]): Promise<any> {
+    const res = await fetch('/api/subtitles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ vid_id, clips }),
+    })
+    if (!res.ok) throw new Error('Subtitles gagal')
+    return res.json()
+  },
 }
 
 // ─── Toast System ─────────────────────────────────────────────────────────────
@@ -787,7 +796,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
       const moments = await API.analyze(data.filename, data.vid_id)
 
       // Server return key "clips" (max 20)
-      const newClips: Clip[] = (moments.clips || []).map((m: any, i: number) => {
+      const rawMoments: any[] = moments.clips || []
+      const newClips: Clip[] = rawMoments.map((m: any, i: number) => {
         const isKaget = !!m.tag_kaget
         const isLucu = (m.lucu_score || 0) >= 5
         return {
@@ -805,6 +815,22 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           transkrip: 'Video telah dianalisis oleh UniversalClip',
         }
       })
+
+      // Ambil subtitle → keyword & transkrip kontekstual per clip
+      if (newClips.length > 0) {
+        try {
+          const subRes = await API.subtitles(data.vid_id, rawMoments.map((m: any, i: number) => ({ id: i, start: m.start, end: m.end })))
+          const subClips: any[] = subRes.clips || []
+          if (subClips.length === newClips.length) {
+            subClips.forEach((sc: any, i: number) => {
+              if (sc.keyword) newClips[i].keyword = sc.keyword
+              if (sc.transcript) newClips[i].transkrip = sc.transcript
+            })
+          }
+        } catch (e) {
+          console.error('Subtitles error:', e)
+        }
+      }
 
       if (newClips.length > 0) {
         setRealClips(newClips)
