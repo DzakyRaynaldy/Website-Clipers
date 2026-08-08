@@ -36,6 +36,14 @@ interface IdeKonten {
   sumber: string
 }
 
+// YouTube IFrame API global
+declare global {
+  interface Window {
+    YT?: any
+    onYouTubeIframeAPIReady?: () => void
+  }
+}
+
 // ─── Mock Data (dari desain Figma) ────────────────────────────────────────────
 
 const MOCK_CLIPS: Clip[] = [
@@ -313,7 +321,6 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
       zIndex: 100,
     }}>
       <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 24px', height: 60, display: 'grid', gridTemplateColumns: '1fr auto 1fr', alignItems: 'center' }}>
-        {/* Logo */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer' }} onClick={() => setActiveTab('home')}>
           <span style={{ fontSize: 22 }}>📋</span>
           <span style={{ fontSize: 18, fontWeight: 800, fontFamily: '"Oxanium", sans-serif', background: 'linear-gradient(135deg, #a855f7, #7c3aed)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', letterSpacing: '0.04em' }}>
@@ -321,7 +328,6 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
           </span>
         </div>
 
-        {/* Tabs — center persis */}
         <div style={{ display: 'flex', gap: 4, justifyContent: 'center' }}>
           {tabs.map(t => (
             <button
@@ -346,7 +352,6 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
           ))}
         </div>
 
-        {/* Dark/Light toggle */}
         <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
           <button
             onClick={() => setDark(!dark)}
@@ -375,7 +380,6 @@ function Navbar({ activeTab, setActiveTab, dark, setDark }: {
 function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
   return (
     <div style={{ maxWidth: 1280, margin: '0 auto', padding: '80px 24px', display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center' }}>
-      {/* Hero glow */}
       <div style={{
         position: 'absolute',
         top: '20%',
@@ -405,7 +409,6 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           Auto-clip & riset konten YouTube <strong style={{ color: 'var(--foreground)' }}>powered by AI</strong> — temukan momen terbaik, buat konten viral lebih cepat.
         </p>
 
-        {/* CTA Buttons */}
         <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 64 }}>
           <button className="btn-primary glow-purple" onClick={() => setActiveTab('clip')} style={{ padding: '16px 36px', fontSize: 16, display: 'flex', alignItems: 'center', gap: 10 }}>
             🎬 Mulai Clip
@@ -415,7 +418,6 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           </button>
         </div>
 
-        {/* Feature pills */}
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', justifyContent: 'center', marginBottom: 64 }}>
           {['😱 Kaget Detection', '😂 Lucu Score', '🔊 Audio Peak', '📊 AI Analysis', '⬇️ Auto Download', '📱 Multi Format'].map(f => (
             <span key={f} style={{
@@ -432,7 +434,6 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
           ))}
         </div>
 
-        {/* Stats row */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 20, width: '100%', maxWidth: 680, margin: '0 auto' }}>
           {[
             { val: '10K+', label: 'Video Diproses' },
@@ -452,53 +453,34 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
   )
 }
 
-// ─── Timeline Editor (CapCut style) ───────────────────────────────────────────
+// ─── Timeline Editor (CapCut style, sync dengan YouTube player) ───────────────
 
-function TimelineEditor({ clip }: { clip: Clip }) {
-  const totalDuration = Math.max(1, clip.end - clip.start)
+interface TimelineProps {
+  clip: Clip
+  currentTime: number          // detik absolut di video
+  playing: boolean
+  onTogglePlay: () => void
+  onSeek: (t: number) => void  // detik absolut
+  onReset: () => void
+}
+
+function TimelineEditor({ clip, currentTime, playing, onTogglePlay, onSeek, onReset }: TimelineProps) {
+  const clipDur = Math.max(1, clip.end - clip.start)
   const trackRef = useRef<HTMLDivElement>(null)
 
-  const [trimStart, setTrimStart] = useState(0)       // 0–100 percent
-  const [trimEnd, setTrimEnd] = useState(100)          // 0–100 percent
-  const [playhead, setPlayhead] = useState(0)          // 0–100 percent
-  const [playing, setPlaying] = useState(false)
+  const [trimStart, setTrimStart] = useState(0)   // 0–100 percent
+  const [trimEnd, setTrimEnd] = useState(100)     // 0–100 percent
   const [hoveredHandle, setHoveredHandle] = useState<'left' | 'right' | null>(null)
   const dragging = useRef<'left' | 'right' | null>(null)
-  const animRef = useRef<number>(0)
-  const playStartTime = useRef<number>(0)
-  const playStartPct = useRef<number>(0)
 
-  // Reset on clip change
+  // Reset trim saat ganti clip
   useEffect(() => {
     setTrimStart(0)
     setTrimEnd(100)
-    setPlayhead(0)
-    setPlaying(false)
   }, [clip.id])
 
-  // Playhead animation
-  useEffect(() => {
-    if (!playing) return
-    playStartTime.current = performance.now()
-    playStartPct.current = playhead
-
-    const tick = (now: number) => {
-      const elapsed = (now - playStartTime.current) / 1000          // seconds
-      const range = (trimEnd - trimStart) / 100 * totalDuration     // seconds in range
-      const pctMoved = (elapsed / Math.max(0.1, range)) * (trimEnd - trimStart)
-      const next = playStartPct.current + pctMoved
-
-      if (next >= trimEnd) {
-        setPlayhead(trimStart)
-        setPlaying(false)
-        return
-      }
-      setPlayhead(next)
-      animRef.current = requestAnimationFrame(tick)
-    }
-    animRef.current = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(animRef.current)
-  }, [playing])
+  // Playhead mengikuti currentTime dari player
+  const playheadPct = Math.max(0, Math.min(100, ((currentTime - clip.start) / clipDur) * 100))
 
   const getPct = (e: MouseEvent | React.MouseEvent) => {
     if (!trackRef.current) return 0
@@ -508,6 +490,7 @@ function TimelineEditor({ clip }: { clip: Clip }) {
 
   const onMouseDown = (handle: 'left' | 'right') => (e: React.MouseEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     dragging.current = handle
 
     const onMove = (ev: MouseEvent) => {
@@ -524,23 +507,29 @@ function TimelineEditor({ clip }: { clip: Clip }) {
     window.addEventListener('mouseup', onUp)
   }
 
-  const reset = () => { setTrimStart(0); setTrimEnd(100); setPlayhead(0); setPlaying(false) }
-  const togglePlay = () => {
-    if (playing) { setPlaying(false); cancelAnimationFrame(animRef.current) }
-    else { if (playhead >= trimEnd) setPlayhead(trimStart); setPlaying(true) }
+  // Klik track → seek player ke titik itu
+  const onTrackClick = (e: React.MouseEvent) => {
+    if (dragging.current) return
+    const pct = getPct(e)
+    onSeek(clip.start + (pct / 100) * clipDur)
   }
 
-  const startSec = clip.start + (trimStart / 100) * totalDuration
-  const endSec = clip.start + (trimEnd / 100) * totalDuration
+  const reset = () => {
+    setTrimStart(0)
+    setTrimEnd(100)
+    onReset()
+  }
+
+  const startSec = clip.start + (trimStart / 100) * clipDur
+  const endSec = clip.start + (trimEnd / 100) * clipDur
   const durSec = Math.round(endSec - startSec)
 
   return (
     <div style={{ background: '#13131d', border: '1px solid #252538', borderRadius: 12, padding: 12 }}>
-      {/* Header Row */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
         <span style={{ fontSize: 12, fontWeight: 700, color: '#e8e8ef', flex: 1 }}>✂️ Manual Timeline</span>
         <button
-          onClick={togglePlay}
+          onClick={onTogglePlay}
           style={{
             background: playing ? 'rgba(239,68,68,0.15)' : 'rgba(124,58,237,0.15)',
             border: `1px solid ${playing ? '#ef4444' : '#252538'}`,
@@ -554,6 +543,7 @@ function TimelineEditor({ clip }: { clip: Clip }) {
         >
           {playing ? '⏸ Pause' : '▶ Play'}
         </button>
+        {/* ponytail: Split bikin clip baru butuh logika slice — nanti kalau mau */}
         <button
           style={{ background: 'none', border: '1px solid #252538', borderRadius: 6, padding: '3px 10px', fontSize: 11, color: '#e8e8ef', cursor: 'pointer', fontFamily: 'inherit' }}
           onClick={() => {}}
@@ -568,12 +558,11 @@ function TimelineEditor({ clip }: { clip: Clip }) {
         </button>
       </div>
 
-      {/* Track */}
       <div
         ref={trackRef}
-        style={{ width: '100%', height: 48, background: '#0b0b10', borderRadius: 8, position: 'relative', userSelect: 'none' }}
+        onMouseDown={onTrackClick}
+        style={{ width: '100%', height: 48, background: '#0b0b10', borderRadius: 8, position: 'relative', userSelect: 'none', cursor: 'pointer' }}
       >
-        {/* Tick marks */}
         {[0, 25, 50, 75, 100].map(p => (
           <div key={p} style={{
             position: 'absolute', left: `${p}%`, top: 0, bottom: 0,
@@ -581,7 +570,6 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           }} />
         ))}
 
-        {/* Purple selected range */}
         <div style={{
           position: 'absolute',
           left: `${trimStart}%`,
@@ -593,7 +581,6 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           pointerEvents: 'none',
         }} />
 
-        {/* Left handle */}
         <div
           onMouseDown={onMouseDown('left')}
           onMouseEnter={() => setHoveredHandle('left')}
@@ -616,7 +603,6 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           <span style={{ color: '#fff', fontSize: 10, pointerEvents: 'none' }}>◀</span>
         </div>
 
-        {/* Right handle */}
         <div
           onMouseDown={onMouseDown('right')}
           onMouseEnter={() => setHoveredHandle('right')}
@@ -639,10 +625,9 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           <span style={{ color: '#fff', fontSize: 10, pointerEvents: 'none' }}>▶</span>
         </div>
 
-        {/* Playhead */}
         <div style={{
           position: 'absolute',
-          left: `${playhead}%`,
+          left: `${playheadPct}%`,
           top: 0,
           bottom: 0,
           width: 3,
@@ -651,6 +636,7 @@ function TimelineEditor({ clip }: { clip: Clip }) {
           transform: 'translateX(-50%)',
           borderRadius: 2,
           pointerEvents: 'none',
+          transition: 'left 0.15s linear',
         }}>
           <span style={{
             position: 'absolute',
@@ -664,7 +650,6 @@ function TimelineEditor({ clip }: { clip: Clip }) {
         </div>
       </div>
 
-      {/* Labels */}
       <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 6 }}>
         <span style={{ fontSize: 11, color: '#8888a0' }}>{formatTime(Math.round(startSec))}</span>
         <span style={{ fontSize: 11, color: '#8888a0' }}>Durasi: {durSec}s</span>
@@ -680,19 +665,83 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [search, setSearch] = useState('')
   const [filter, setFilter] = useState('all')
   const [selectedClip, setSelectedClip] = useState<Clip>(MOCK_CLIPS[0])
-  const [manualStart, setManualStart] = useState('')
-  const [manualEnd, setManualEnd] = useState('')
   const [progress, setProgress] = useState(0)
   const [downloading, setDownloading] = useState(false)
   const [youtubeUrl, setYoutubeUrl] = useState('')
   const [vidId, setVidId] = useState('')
   const [analyzing, setAnalyzing] = useState(false)
   const [realClips, setRealClips] = useState<Clip[]>([])
+  const [playing, setPlaying] = useState(false)
+  const [currentTime, setCurrentTime] = useState(0)
 
-  const YOUTUBE_URL = 'https://www.youtube.com/embed/dQw4w9WgXcQ'
+  const playerHostRef = useRef<HTMLDivElement>(null)
+  const playerRef = useRef<any>(null)
+  const playerReadyRef = useRef(false)
+  const pendingSeekRef = useRef<number | null>(null)
 
   const clips = realClips.length > 0 ? realClips : MOCK_CLIPS
   const activeClip = clips.find(c => c.id === selectedClip.id) || clips[0]
+
+  // ── YouTube IFrame API: buat player sekali per vidId ──
+  useEffect(() => {
+    if (!vidId) return
+    let cancelled = false
+
+    const initPlayer = () => {
+      if (cancelled || !playerHostRef.current || playerRef.current) return
+      playerRef.current = new window.YT.Player(playerHostRef.current, {
+        videoId: vidId,
+        playerVars: { playsinline: 1, rel: 0, modestbranding: 1 },
+        events: {
+          onReady: () => {
+            playerReadyRef.current = true
+            if (pendingSeekRef.current != null) {
+              playerRef.current.seekTo(pendingSeekRef.current, true)
+              pendingSeekRef.current = null
+            }
+          },
+          onStateChange: (e: any) => setPlaying(e.data === 1),
+        },
+      })
+    }
+
+    if (window.YT && window.YT.Player) {
+      initPlayer()
+    } else {
+      window.onYouTubeIframeAPIReady = initPlayer
+      if (!document.querySelector('script[src*="iframe_api"]')) {
+        const s = document.createElement('script')
+        s.src = 'https://www.youtube.com/iframe_api'
+        document.body.appendChild(s)
+      }
+    }
+
+    return () => { cancelled = true }
+  }, [vidId])
+
+  // ── Ganti clip → seek tanpa reload iframe ──
+  useEffect(() => {
+    if (!vidId) return
+    const t = activeClip.start
+    setCurrentTime(t)
+    if (playerReadyRef.current && playerRef.current?.seekTo) {
+      playerRef.current.seekTo(t, true)
+    } else {
+      pendingSeekRef.current = t
+    }
+  }, [activeClip.id, vidId])
+
+  // ── Polling posisi player ──
+  useEffect(() => {
+    if (!playing) return
+    const id = setInterval(() => {
+      const p = playerRef.current
+      if (p && typeof p.getCurrentTime === 'function') {
+        setCurrentTime(p.getCurrentTime())
+      }
+    }, 250)
+    return () => clearInterval(id)
+  }, [playing])
 
   const filteredClips = clips.filter(c => {
     const matchSearch = c.keyword.toLowerCase().includes(search.toLowerCase())
@@ -730,30 +779,32 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
       return
     }
     setAnalyzing(true)
-    setProgress(0)
     addToast('Memulai download audio...', 'info')
     try {
       const data = await API.downloadAudio(youtubeUrl)
       setVidId(data.vid_id)
-      setProgress(40)
       addToast('Menganalisis audio, ini agak lama...', 'info')
       const moments = await API.analyze(data.filename, data.vid_id)
-      setProgress(90)
 
-      const newClips: Clip[] = (moments.moments || []).map((m: any, i: number) => ({
-        id: i,
-        keyword: m.type === 'lucu' ? 'momen ngakak' : m.type === 'kaget' ? 'adegan kaget' : 'epic moment',
-        badge: m.type === 'kaget' ? '😱 KAGET' : m.type === 'lucu' ? '😂 LUCU' : '🔊 AUDIO',
-        badgeType: m.type || 'audio',
-        start: Math.round(m.start),
-        end: Math.round(m.end),
-        intensityScore: Math.round(m.intensity || 0),
-        kagetScore: Math.round(m.kaget || 0),
-        lucuScore: Math.round(m.lucu || 0),
-        label: (m.duration || 0) <= 60 ? 'Shorts' : 'Video',
-        komentar: 'Moment terdeteksi dari analisis audio',
-        transkrip: 'Video telah dianalisis oleh UniversalClip',
-      }))
+      // Server return key "clips" (max 20)
+      const newClips: Clip[] = (moments.clips || []).map((m: any, i: number) => {
+        const isKaget = !!m.tag_kaget
+        const isLucu = (m.lucu_score || 0) >= 5
+        return {
+          id: i,
+          keyword: isLucu ? 'momen ngakak' : isKaget ? 'adegan kaget' : 'epic moment',
+          badge: isKaget ? '😱 KAGET' : isLucu ? '😂 LUCU' : '🔊 AUDIO',
+          badgeType: isKaget ? 'kaget' : isLucu ? 'lucu' : 'audio',
+          start: Math.round(m.start),
+          end: Math.round(m.end),
+          intensityScore: Math.round((m.intensity || 0) * 100),
+          kagetScore: Math.round((m.kaget_score || 0) * 10),
+          lucuScore: Math.round((m.lucu_score || 0) * 10),
+          label: m.label === 'Reels' ? 'Reels' : m.label === 'Video' ? 'Video' : 'Shorts',
+          komentar: 'Moment terdeteksi dari analisis audio',
+          transkrip: 'Video telah dianalisis oleh UniversalClip',
+        }
+      })
 
       if (newClips.length > 0) {
         setRealClips(newClips)
@@ -766,8 +817,33 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
       addToast(`Error: ${String(e).slice(0, 60)}`, 'error')
     } finally {
       setAnalyzing(false)
-      setProgress(0)
     }
+  }
+
+  const togglePlay = () => {
+    const p = playerRef.current
+    if (!p) return
+    if (playing) {
+      p.pauseVideo()
+    } else {
+      if (currentTime < activeClip.start || currentTime > activeClip.end) {
+        p.seekTo(activeClip.start, true)
+      }
+      p.playVideo()
+    }
+  }
+
+  const seekTo = (t: number) => {
+    const p = playerRef.current
+    setCurrentTime(t)
+    if (p && playerReadyRef.current) p.seekTo(t, true)
+    else pendingSeekRef.current = t
+  }
+
+  const resetPlayback = () => {
+    seekTo(activeClip.start)
+    const p = playerRef.current
+    if (p) p.pauseVideo()
   }
 
   const simulateDownload = (label: string) => {
@@ -794,7 +870,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
         {/* ── LEFT: Clip List ── */}
         <div className="card-base" style={{ padding: 16, display: 'flex', flexDirection: 'column', gap: 12, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
           <h3 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            📋 Daftar Clip
+            📋 Daftar Clip <span style={{ color: '#a855f7', fontWeight: 700 }}>({clips.length})</span>
           </h3>
 
           <input
@@ -852,7 +928,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
         {/* ── CENTER: Video Player ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          {/* Input YouTube */}
           <div className="card-base" style={{ padding: 14 }}>
             <div style={{ display: 'flex', gap: 8 }}>
               <input
@@ -887,33 +962,40 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
           <div className="card-base" style={{ overflow: 'hidden' }}>
             <div style={{ position: 'relative', background: '#000', borderRadius: '12px 12px 0 0' }}>
-              <iframe
-                src={`${vidId ? `https://www.youtube.com/embed/${vidId}` : YOUTUBE_URL}?start=${Math.round(activeClip.start)}&autoplay=0`}
-                title="Video Player"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-                style={{ width: '100%', height: '60vh', border: 'none', display: 'block' }}
-              />
+              {vidId ? (
+                <div ref={playerHostRef} style={{ width: '100%', aspectRatio: '16/9' }} />
+              ) : (
+                <div style={{ height: '40vh', display: 'flex', alignItems: 'center', justifyContent: 'center', flexDirection: 'column', gap: 10 }}>
+                  <span style={{ fontSize: 48 }}>🎥</span>
+                  <span style={{ color: '#666', fontSize: 14 }}>Analisis video dulu untuk tampilkan player</span>
+                </div>
+              )}
             </div>
 
-            {/* Controls */}
             <div style={{ padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 10 }}>
-              <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }}>⏪ 5s</button>
-              <button className="btn-primary" style={{ padding: '7px 20px', fontSize: 13 }}>▶ Play</button>
-              <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }}>⏩ 5s</button>
+              <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }} onClick={() => seekTo(activeClip.start - 5)}>⏪ 5s</button>
+              <button className="btn-primary" style={{ padding: '7px 20px', fontSize: 13 }} onClick={togglePlay}>
+                {playing ? '⏸ Pause' : '▶ Play'}
+              </button>
+              <button className="btn-secondary" style={{ padding: '7px 14px', fontSize: 13 }} onClick={() => seekTo(activeClip.start + 5)}>⏩ 5s</button>
               <span style={{ fontSize: 12, color: 'var(--muted-foreground)', whiteSpace: 'nowrap' }}>
                 {formatTime(activeClip.start)} / {formatTime(activeClip.end)}
               </span>
             </div>
           </div>
 
-          {/* Timeline Editor */}
-          <TimelineEditor clip={activeClip} />
+          <TimelineEditor
+            clip={activeClip}
+            currentTime={currentTime}
+            playing={playing}
+            onTogglePlay={togglePlay}
+            onSeek={seekTo}
+            onReset={resetPlayback}
+          />
         </div>
 
         {/* ── RIGHT: Detail & Download ── */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16, maxHeight: 'calc(100vh - 100px)', overflowY: 'auto' }}>
-          {/* Detail */}
           <div className="card-base" style={{ padding: 16 }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               📊 Detail Clip
@@ -933,7 +1015,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
               <div style={{ height: 1, background: 'var(--border)', margin: '4px 0' }} />
 
-              {/* Score bars */}
               {[
                 { label: 'Intensity', val: activeClip.intensityScore, color: '#a855f7' },
                 { label: 'Kaget Score', val: activeClip.kagetScore, color: '#f87171' },
@@ -945,7 +1026,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                     <span style={{ fontSize: 11, fontWeight: 700, color: s.color }}>{s.val}</span>
                   </div>
                   <div className="progress-bar">
-                    <div className="progress-fill" style={{ width: `${s.val}%`, background: s.color }} />
+                    <div className="progress-fill" style={{ width: `${Math.min(100, s.val)}%`, background: s.color }} />
                   </div>
                 </div>
               ))}
@@ -973,7 +1054,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             </div>
           </div>
 
-          {/* Actions */}
           <div className="card-base" style={{ padding: 16 }}>
             <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
               ⚡ Aksi
@@ -982,7 +1062,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               <button
                 className="btn-secondary"
                 style={{ padding: '10px', fontSize: 13, width: '100%' }}
-                onClick={() => addToast('Memulai preview clip...', 'info')}
+                onClick={() => togglePlay()}
               >
                 ▶ Preview Clip
               </button>
@@ -1032,7 +1112,6 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
   return (
     <div style={{ maxWidth: 960, margin: '0 auto', padding: '32px 20px', display: 'flex', flexDirection: 'column', gap: 24 }}>
 
-      {/* Step 1 */}
       <div className="card-base" style={{ padding: 28 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 20 }}>
           <div style={{ width: 28, height: 28, background: 'linear-gradient(135deg, #7c3aed, #a855f7)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800, color: '#fff' }}>1</div>
@@ -1093,7 +1172,6 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
         </button>
       </div>
 
-      {/* Top Keywords */}
       {results.length > 0 && (
         <div className="card-base fade-in" style={{ padding: 24 }}>
           <h3 style={{ margin: '0 0 14px', fontSize: 13, fontWeight: 700, color: 'var(--muted-foreground)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
@@ -1119,7 +1197,6 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
         </div>
       )}
 
-      {/* Results */}
       {results.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           {results.map((ideKonten, i) => (
@@ -1157,7 +1234,6 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
                 {ideKonten.deskripsi}
               </p>
 
-              {/* Hashtags */}
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 12 }}>
                 {ideKonten.hashtags.map(h => (
                   <span key={h} className="pill" style={{ background: 'rgba(124,58,237,0.1)', color: '#a855f7', border: '1px solid rgba(124,58,237,0.2)', fontSize: 11 }}>
@@ -1166,7 +1242,6 @@ function RisetKonten({ addToast }: { addToast: (msg: string, type: ToastType) =>
                 ))}
               </div>
 
-              {/* Source */}
               <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                 <span style={{ fontSize: 11, color: 'var(--muted-foreground)' }}>🔗 Sumber:</span>
                 <a
