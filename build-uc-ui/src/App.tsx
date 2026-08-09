@@ -471,6 +471,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [viewerComments, setViewerComments] = useState<ViewerComment[]>([])
   const [commentsLoading, setCommentsLoading] = useState(false)
   const [downloading, setDownloading] = useState(false)
+  const pollRef = useRef<number | null>(null)
   const [dlJob, setDlJob] = useState<{ percent: number; stage: string; status: string } | null>(null)
   const [commentHl, setCommentHl] = useState<{ start: number; end: number } | null>(null)
   const [commentDlTime, setCommentDlTime] = useState<number | null>(null)
@@ -700,6 +701,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   // ── Download range [start, end] (potong segmen via backend, polling progress) ──
   const downloadRange = async (start: number, end: number) => {
     if (!vidId) return
+    // job baru → berhentikan polling job lama (bisa download berikutnya sambil jalan)
+    if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
     setDownloading(true)
     setDlJob({ percent: 0, stage: 'Memulai...', status: 'processing' })
 
@@ -726,21 +729,22 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
           const p = await API.downloadProgress(res.job_id)
           setDlJob(p)
           if (p.status === 'done') {
-            clearInterval(poll)
+            clearInterval(poll); pollRef.current = null
             triggerDownload(p.download_url, p.filename)
             addToast(`Download ${p.filename || 'clip'} dimulai!`, 'success')
             setDownloading(false)
           } else if (p.status === 'error') {
-            clearInterval(poll)
+            clearInterval(poll); pollRef.current = null
             addToast(`Download gagal: ${(p.error || p.stage || '').slice(0, 60)}`, 'error')
             setDownloading(false)
           }
         } catch (e) {
-          clearInterval(poll)
+          clearInterval(poll); pollRef.current = null
           addToast('Gagal cek progress download', 'error')
           setDownloading(false)
         }
       }, 500)
+      pollRef.current = poll
     } catch (e) {
       addToast(`Download gagal: ${String(e).slice(0, 60)}`, 'error')
       setDownloading(false)
@@ -1022,6 +1026,61 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             <div style={{ position: 'relative', background: '#000', borderRadius: '12px 12px 0 0' }}>
               <div ref={playerHostRef} style={{ width: '100%', aspectRatio: '16/9' }} />
             </div>
+            {/* Strip highlight: range yang bakal di-download (konteks 5-30s + clip) */}
+            <div style={{ padding: '10px 14px 12px' }}>
+              <div style={{ position: 'relative', height: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 5, overflow: 'hidden' }}>
+                {(() => {
+                  // range yang bakal didownload
+                  const dlStart = commentDlSec != null && commentDlTime != null
+                    ? Math.max(0, commentDlTime - commentDlSec)
+                    : clipDlSec != null
+                      ? Math.max(0, activeClip.start - clipDlSec)
+                      : activeClip.start
+                  const dlEnd = commentDlSec != null && commentDlTime != null
+                    ? commentDlTime
+                    : activeClip.end
+                  const span = Math.max(1, dlEnd - dlStart)
+                  // posisi relatif clip di dalam range
+                  const cs = Math.max(0, ((activeClip.start - dlStart) / span) * 100)
+                  const ce = Math.min(100, ((activeClip.end - dlStart) / span) * 100)
+                  // playhead relatif
+                  const ph = Math.min(100, Math.max(0, ((currentTime - dlStart) / span) * 100))
+                  const hasCtx = (clipDlSec != null) || (commentDlSec != null && commentDlTime != null)
+                  return (
+                    <>
+                      {/* seluruh range download = kuning kalau ada konteks */}
+                      {hasCtx && <div style={{ position: 'absolute', inset: 0, background: 'rgba(251,191,36,0.25)' }} />}
+                      {/* clip aktif = ungu */}
+                      <div style={{ position: 'absolute', top: 0, bottom: 0, left: `${cs}%`, width: `${Math.max(1, ce - cs)}%`, background: 'rgba(168,85,247,0.65)' }} />
+                      {/* playhead merah */}
+                      <div style={{ position: 'absolute', top: -2, bottom: -2, left: `${ph}%`, width: 3, background: '#ef4444', borderRadius: 2, zIndex: 2 }} />
+                    </>
+                  )
+                })()}
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: 10, color: 'var(--muted-foreground)' }}>
+                {(() => {
+                  const dlStart = commentDlSec != null && commentDlTime != null
+                    ? Math.max(0, commentDlTime - commentDlSec)
+                    : clipDlSec != null
+                      ? Math.max(0, activeClip.start - clipDlSec)
+                      : activeClip.start
+                  const dlEnd = commentDlSec != null && commentDlTime != null
+                    ? commentDlTime
+                    : activeClip.end
+                  const hasCtx = (clipDlSec != null) || (commentDlSec != null && commentDlTime != null)
+                  return (
+                    <>
+                      <span style={{ color: hasCtx ? '#fbbf24' : 'var(--muted-foreground)' }}>
+                        ⬇ {formatTime(dlStart)}
+                      </span>
+                      <span style={{ color: '#a855f7' }}>🎬 {formatTime(activeClip.start)} – {formatTime(activeClip.end)}</span>
+                      <span>{formatTime(dlEnd)}</span>
+                    </>
+                  )
+                })()}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -1109,7 +1168,6 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                 className="btn-primary glow-purple-sm"
                 style={{ padding: '10px', fontSize: 13, width: '100%' }}
                 onClick={handleDownloadClip}
-                disabled={downloading}
               >
                 {downloading && dlJob ? (
                   <span style={{ display: 'block' }}>
