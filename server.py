@@ -118,13 +118,14 @@ def get_subtitles():
                 json.dump([], fh)
     with open(sub_file, 'r', encoding='utf-8') as fh:
         sub_data = json.load(fh)
-    # Fallback: transkripsi lokal kalau YouTube caption gak nyambung di range clip
+    # Fallback: transkripsi lokal HANYA kalau caption YouTube kosong total
+    # (per-clip kosong → keyword default; jangan transcribe seluruh video cuma buat 1 clip)
     whisper = None
+    if not sub_data:
+        whisper = _whisper_transcript(vid_id)
     for clip in clips:
         cs, ce = clip.get('start', 0), clip.get('end', 0)
         kw = _keyword_from(sub_data, cs, ce)
-        if not kw and whisper is None:
-            whisper = _whisper_transcript(vid_id)
         if not kw and whisper:
             kw = _keyword_from(whisper, cs, ce)
         clip['keyword'] = kw
