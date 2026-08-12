@@ -13,6 +13,17 @@ CORS(app, resources={r"/api/*": {"origins": "*", "methods": ["GET", "POST", "OPT
 DOWNLOADS = Path(__file__).parent / 'downloads'
 DOWNLOADS.mkdir(exist_ok=True)
 
+# ========== Helpers ==========#
+def _sanitize_title(title: str) -> str:
+    """Judul highlight → nama file aman untuk semua OS."""
+    t = title.strip()
+    # trim + ganti spasi → underscore + hapus karakter ilegal Windows
+    t = re.sub(r'[^\w\s\|\[\]\(\)\-–—.,!\u00C0-\u017F]', '', t)
+    t = re.sub(r'\s+', '_', t).strip('_')
+    # batasi panjang + trim ekor underscore
+    t = t[:100].rstrip('_')
+    return t or 'clip'
+
 # ========== Categories Config (Naratif AI Focused) ==========
 CATEGORIES = {
     'fakta_game': {'label': 'Fakta Unik Game', 'icon': '🎮', 'queries': ['fakta rahasia video game', 'easter eggs game', 'fakta unik karakter game']},
@@ -279,11 +290,15 @@ _dl_lock = threading.Lock()
 @app.route('/api/download-video-segment', methods=['POST'])
 def download_video_segment():
     data = request.json
-    url, vid_id, start, end = data.get('url', ''), data.get('vid_id', ''), data.get('start', 0), data.get('end', 0)
+    url = data.get('url', '')
+    vid_id, start, end = data.get('vid_id', ''), data.get('start', 0), data.get('end', 0)
+    title = data.get('title', '') or ''
     if not url:
         return jsonify({'error': 'URL kosong'}), 400
     job_id = f'{vid_id}_{int(start)}_{int(end)}'
-    out_name = f'clip_{job_id}.mp4'
+    # nama file pakai judul highlight (sanitized), fallback ke pola lama
+    base_name = _sanitize_title(title) if title else f'clip_{job_id}'
+    out_name = f'{base_name}.mp4'
     out_path = DOWNLOADS / out_name
     with _dl_lock:
         if out_path.exists():

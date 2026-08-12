@@ -182,11 +182,11 @@ const API = {
     if (!res.ok) throw new Error('Komentar gagal')
     return res.json()
   },
-  async downloadSegment(url: string, vid_id: string, start: number, end: number): Promise<any> {
+  async downloadSegment(url: string, vid_id: string, start: number, end: number, title?: string): Promise<any> {
     const res = await fetch('/api/download-video-segment', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url, vid_id, start, end }),
+      body: JSON.stringify({ url, vid_id, start, end, title }),
     })
     if (!res.ok) throw new Error('Gagal download segment')
     return res.json()
@@ -699,7 +699,7 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   }
 
   // ── Download range [start, end] (potong segmen via backend, polling progress) ──
-  const downloadRange = async (start: number, end: number) => {
+  const downloadRange = async (start: number, end: number, title?: string) => {
     if (!vidId) return
     // job baru → berhentikan polling job lama (bisa download berikutnya sambil jalan)
     if (pollRef.current) { clearInterval(pollRef.current); pollRef.current = null }
@@ -753,13 +753,13 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
 
   const handleDownloadClip = () => {
     if (!activeClip) return
-    // prioritas: pilihan dari komentar > pilihan dari clip > clip aktif polos
+    const title = activeClip.keyword || ''
     if (commentDlSec != null && commentDlTime != null) {
-      downloadRange(Math.max(0, commentDlTime - commentDlSec), commentDlTime)
+      downloadRange(Math.max(0, commentDlTime - commentDlSec), commentDlTime, title)
     } else if (clipDlSec != null) {
-      downloadRange(Math.max(0, activeClip.start - clipDlSec), activeClip.end)
+      downloadRange(Math.max(0, activeClip.start - clipDlSec), activeClip.end, title)
     } else {
-      downloadRange(activeClip.start, activeClip.end)
+      downloadRange(activeClip.start, activeClip.end, title)
     }
   }
 
