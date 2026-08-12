@@ -399,10 +399,11 @@ function HomePage({ setActiveTab }: { setActiveTab: (t: Tab) => void }) {
 // ─── Timeline Editor (CapCut style, sync dengan YouTube player) ───────────────
 
 // ── Dropdown pilihan N detik sebelum (dipakai komentar & clip) ──
-function SecPickDrop({ title, sec, onPick, onClear }: {
+function SecPickDrop({ title, before, after, onPick, onClear }: {
   title: string
-  sec: number | null
-  onPick: (n: number) => void
+  before: number | null
+  after: number | null
+  onPick: (before: number, after: number) => void
   onClear: () => void
 }) {
   return (
@@ -417,49 +418,47 @@ function SecPickDrop({ title, sec, onPick, onClear }: {
         <span style={{ color: '#fbbf24', fontWeight: 800, fontSize: 13 }}>!</span>
         <div style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{title}</div>
       </div>
-      <div style={{ fontSize: 11, color: '#9ca3af', margin: '0 0 8px 19px' }}>
-        Ambil berapa detik sebelum momen?
+      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>
+        Before: berapa detik sebelum momen?
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6, marginBottom: 8 }}>
         {[5, 10, 15, 20, 25, 30].map(n => (
           <button
-            key={n}
+            key={'b'+n}
             className="btn-secondary"
-            onClick={() => onPick(n)}
+            onClick={() => onPick(n, after ?? 0)}
             style={{
-              padding: '8px 0',
-              fontSize: 12,
-              fontWeight: 600,
-              borderRadius: 999,
-              background: sec === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
-              border: `1px solid ${sec === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
+              padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 999,
+              background: before === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
+              border: `1px solid ${before === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
               color: '#fff',
             }}
           >
-            {n}s sebelum
+            +{n}s before
           </button>
         ))}
       </div>
-      {/* Before / After tambahan 10 detik */}
-      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
-        <button
-          className="btn-secondary"
-          onClick={() => onPick((sec || 10) + 10)}
-          style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, borderRadius: 8,
-            background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.4)', color: '#60a5fa' }}
-        >
-          +10s before
-        </button>
-        <button
-          className="btn-secondary"
-          onClick={() => onPick(Math.max(5, (sec || 10) - 10))}
-          style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, borderRadius: 8,
-            background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}
-        >
-          -10s before
-        </button>
+      <div style={{ fontSize: 11, color: '#9ca3af', marginBottom: 6 }}>
+        After: berapa detik setelah momen?
       </div>
-      {!sec && (
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        {[0, 5, 10, 15, 20, 30].map(n => (
+          <button
+            key={'a'+n}
+            className="btn-secondary"
+            onClick={() => onPick(before ?? 10, n)}
+            style={{
+              padding: '8px 0', fontSize: 12, fontWeight: 600, borderRadius: 999,
+              background: after === n ? 'rgba(168,85,247,0.35)' : '#2a2a33',
+              border: `1px solid ${after === n ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.14)'}`,
+              color: '#fff',
+            }}
+          >
+            +{n}s after
+          </button>
+        ))}
+      </div>
+      {!before && !after && (
         <div style={{ fontSize: 10, color: '#9ca3af', textAlign: 'center', marginTop: 4 }}>
           Tanpa pilih = clip asli
         </div>
@@ -492,10 +491,12 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   const [dlJob, setDlJob] = useState<{ percent: number; stage: string; status: string } | null>(null)
   const [commentHl, setCommentHl] = useState<{ start: number; end: number } | null>(null)
   const [commentDlTime, setCommentDlTime] = useState<number | null>(null)
-  const [commentDlSec, setCommentDlSec] = useState<number | null>(null)
-  const [clipDlSec, setClipDlSec] = useState<number | null>(null)
-  const [openSecFor, setOpenSecFor] = useState<number | null>(null)
-  const [openCmtFor, setOpenCmtFor] = useState<number | null>(null)
+    const [commentDlSec, setCommentDlSec] = useState<number | null>(null)
+    const [commentDlAfter, setCommentDlAfter] = useState<number | null>(null)
+    const [clipDlSec, setClipDlSec] = useState<number | null>(null)
+    const [clipDlAfter, setClipDlAfter] = useState<number | null>(null)
+    const [openSecFor, setOpenSecFor] = useState<number | null>(null)
+    const [openCmtFor, setOpenCmtFor] = useState<number | null>(null)
 
   const playerHostRef = useRef<HTMLDivElement>(null)
   const playerRef = useRef<any>(null)
@@ -769,16 +770,16 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
   }
 
   const handleDownloadClip = () => {
-    if (!activeClip) return
-    const title = activeClip.keyword || ''
-    if (commentDlSec != null && commentDlTime != null) {
-      downloadRange(Math.max(0, commentDlTime - commentDlSec), commentDlTime, title)
-    } else if (clipDlSec != null) {
-      downloadRange(Math.max(0, activeClip.start - clipDlSec), activeClip.end, title)
-    } else {
-      downloadRange(activeClip.start, activeClip.end, title)
+      if (!activeClip) return
+      const title = activeClip.keyword || ''
+      if (commentDlSec != null && commentDlTime != null) {
+        downloadRange(Math.max(0, commentDlTime - commentDlSec), (commentDlTime ?? 0) + (commentDlAfter ?? 0), title)
+      } else if (clipDlSec != null) {
+        downloadRange(Math.max(0, activeClip.start - clipDlSec), activeClip.end + (clipDlAfter ?? 0), title)
+      } else {
+        downloadRange(activeClip.start, activeClip.end, title)
+      }
     }
-  }
 
   const badgeColors: Record<string, string> = {
     kaget: 'rgba(239,68,68,0.2)',
@@ -957,19 +958,21 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                   {/* Dropdown konteks — muncul di bawah komentar yang diklik */}
                   {openCmtFor === c.time && (
                     <SecPickDrop
-                      title={`Download clip dari komentar ${formatTime(c.time)}`}
-                      sec={commentDlSec}
-                      onPick={n => {
-                        setCommentDlTime(c.time)
-                        setCommentDlSec(n)
-                        // dropdown tetap kebuka — ganti pilihan langsung klik tombol lain
-                      }}
-                      onClear={() => {
-                        setCommentDlSec(null)
-                        setCommentDlTime(null)
-                        setOpenCmtFor(null)
-                      }}
-                    />
+                                      title={`Download clip dari komentar ${formatTime(c.time)}`}
+                                      before={commentDlSec}
+                                      after={commentDlAfter}
+                                      onPick={(b, a) => {
+                                        setCommentDlTime(c.time)
+                                        setCommentDlSec(b)
+                                        setCommentDlAfter(a)
+                                      }}
+                                      onClear={() => {
+                                        setCommentDlSec(null)
+                                        setCommentDlAfter(null)
+                                        setCommentDlTime(null)
+                                        setOpenCmtFor(null)
+                                      }}
+                                    />
                   )}
                   </div>
                 ))}
@@ -1016,14 +1019,12 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
               {/* Dropdown konteks — muncul di bawah clip yang diklik */}
               {openSecFor === clip.id && (
                 <SecPickDrop
-                  title="Download clip dengan konteks sebelum momen"
-                  sec={clipDlSec}
-                  onPick={n => setClipDlSec(n)}
-                  onClear={() => {
-                    setClipDlSec(null)
-                    setOpenSecFor(null)
-                  }}
-                />
+                                  title="Download clip dengan konteks"
+                                  before={clipDlSec}
+                                  after={clipDlAfter}
+                                  onPick={(b, a) => { setClipDlSec(b); setClipDlAfter(a) }}
+                                  onClear={() => { setClipDlSec(null); setClipDlAfter(null); setOpenSecFor(null) }}
+                                />
               )}
                 </div>
               ))}
@@ -1047,22 +1048,22 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
             <div style={{ padding: '10px 14px 12px' }}>
               <div style={{ position: 'relative', height: 10, background: 'rgba(255,255,255,0.06)', borderRadius: 5, overflow: 'hidden' }}>
                 {(() => {
-                  // range yang bakal didownload
-                  const dlStart = commentDlSec != null && commentDlTime != null
-                    ? Math.max(0, commentDlTime - commentDlSec)
-                    : clipDlSec != null
-                      ? Math.max(0, activeClip.start - clipDlSec)
-                      : activeClip.start
-                  const dlEnd = commentDlSec != null && commentDlTime != null
-                    ? commentDlTime
-                    : activeClip.end
-                  const span = Math.max(1, dlEnd - dlStart)
-                  // posisi relatif clip di dalam range
-                  const cs = Math.max(0, ((activeClip.start - dlStart) / span) * 100)
-                  const ce = Math.min(100, ((activeClip.end - dlStart) / span) * 100)
-                  // playhead relatif
-                  const ph = Math.min(100, Math.max(0, ((currentTime - dlStart) / span) * 100))
-                  const hasCtx = (clipDlSec != null) || (commentDlSec != null && commentDlTime != null)
+                                  // range yang bakal didownload
+                                  const dlStart = commentDlSec != null && commentDlTime != null
+                                    ? Math.max(0, commentDlTime - commentDlSec)
+                                    : clipDlSec != null
+                                      ? Math.max(0, activeClip.start - clipDlSec)
+                                      : activeClip.start
+                                  const dlEnd = commentDlSec != null && commentDlTime != null
+                                    ? (commentDlTime ?? 0) + (commentDlAfter ?? 0)
+                                    : activeClip.end + (clipDlAfter ?? 0)
+                                  const span = Math.max(1, dlEnd - dlStart)
+                                  // posisi relatif clip di dalam range
+                                  const cs = Math.max(0, ((activeClip.start - dlStart) / span) * 100)
+                                  const ce = Math.min(100, ((activeClip.end - dlStart) / span) * 100)
+                                  // playhead relatif
+                                  const ph = Math.min(100, Math.max(0, ((currentTime - dlStart) / span) * 100))
+                                  const hasCtx = (clipDlSec != null) || (commentDlSec != null && commentDlTime != null)
                   return (
                     <>
                       {/* seluruh range download = kuning kalau ada konteks */}
@@ -1083,8 +1084,8 @@ function ClipEditor({ addToast }: { addToast: (msg: string, type: ToastType) => 
                       ? Math.max(0, activeClip.start - clipDlSec)
                       : activeClip.start
                   const dlEnd = commentDlSec != null && commentDlTime != null
-                    ? commentDlTime
-                    : activeClip.end
+                    ? (commentDlTime ?? 0) + (commentDlAfter ?? 0)
+                    : activeClip.end + (clipDlAfter ?? 0)
                   const hasCtx = (clipDlSec != null) || (commentDlSec != null && commentDlTime != null)
                   return (
                     <>
