@@ -440,13 +440,30 @@ function SecPickDrop({ title, sec, onPick, onClear }: {
           </button>
         ))}
       </div>
-      <button
-        className="btn-secondary"
-        onClick={onClear}
-        style={{ marginTop: 8, width: '100%', padding: '8px 0', fontSize: 12, borderRadius: 10, color: '#9ca3af' }}
-      >
-        Tanpa konteks (langsung full clip)
-      </button>
+      {/* Before / After tambahan 10 detik */}
+      <div style={{ display: 'flex', gap: 6, marginTop: 6 }}>
+        <button
+          className="btn-secondary"
+          onClick={() => onPick((sec || 10) + 10)}
+          style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, borderRadius: 8,
+            background: 'rgba(59,130,246,0.12)', border: '1px solid rgba(59,130,246,0.4)', color: '#60a5fa' }}
+        >
+          +10s before
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => onPick(Math.max(5, (sec || 10) - 10))}
+          style={{ flex: 1, padding: '6px 0', fontSize: 11, fontWeight: 700, borderRadius: 8,
+            background: 'rgba(248,113,113,0.12)', border: '1px solid rgba(248,113,113,0.4)', color: '#f87171' }}
+        >
+          -10s before
+        </button>
+      </div>
+      {!sec && (
+        <div style={{ fontSize: 10, color: '#9ca3af', textAlign: 'center', marginTop: 4 }}>
+          Tanpa pilih = clip asli
+        </div>
+      )}
     </div>
   )
 }
